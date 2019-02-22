@@ -22,6 +22,7 @@ public class SceneParser : MonoBehaviour
 
     [HideInInspector]
     public static SceneData _SceneData;
+    public static GeometryData _GeometryData;
 
     [HideInInspector]
     public static List<Sphere> _Spheres = new List<Sphere>();
@@ -65,6 +66,7 @@ public class SceneParser : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         _SceneData = new SceneData();
+        _GeometryData = new GeometryData();
     }
 
     private void Start()
@@ -99,6 +101,7 @@ public class SceneParser : MonoBehaviour
     {
         ParseSceneSpheres();
         ParseScenePointLights();
+        ParseSceneMeshes();
 
         rayTracingMaster.SetUpScene();
     }
@@ -106,6 +109,50 @@ public class SceneParser : MonoBehaviour
     private void ParseScenePointLights()
     {
 
+    }
+
+    private void ParseSceneMeshes()
+    {
+        _GeometryData._MeshCount = 0;
+        _GeometryData._SizeOfIndexList = 0;
+        _GeometryData._SizeOfVertexList = 0;
+
+        _GeometryData._MeshDataList.Clear();
+        _GeometryData._VertexList.Clear();
+        _GeometryData._IndexList.Clear();
+
+        Transform meshObjects = GameObject.Find("SceneGeometry/Meshes").GetComponent<Transform>();
+
+        foreach (Transform meshObject in meshObjects)
+        {
+            MeshData newMeshData = new MeshData();
+            newMeshData._TriangleIndexStart = _GeometryData._SizeOfIndexList;
+            newMeshData._VertexIndexStart = _GeometryData._SizeOfVertexList;
+            newMeshData.position = meshObject.position;
+            newMeshData.scale = meshObject.localScale.x;
+
+            Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
+
+            _GeometryData._VertexList.AddRange(mesh.vertices);
+            _GeometryData._SizeOfVertexList += mesh.vertexCount;
+
+            _GeometryData._IndexList.AddRange(mesh.triangles);
+            _GeometryData._SizeOfIndexList += mesh.triangles.Length;
+
+            // TODO: Dangerous, be careful of this!
+            newMeshData._TriangleIndexEnd = _GeometryData._SizeOfIndexList;
+
+            Material meshMat = meshObject.GetComponent<Renderer>().material;
+
+            newMeshData.albedo = new Vector3(meshMat.color.r, meshMat.color.g, meshMat.color.b);
+            newMeshData.specular = new Vector3(meshMat.GetFloat("_Metallic"),
+                                               meshMat.GetFloat("_Metallic"),
+                                               meshMat.GetFloat("_Metallic")
+                                               );
+
+            _GeometryData._MeshDataList.Add(newMeshData);
+            _GeometryData._MeshCount++;
+        }
     }
 
     private void ParseSceneSpheres()

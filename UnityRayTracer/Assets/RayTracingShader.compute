@@ -18,6 +18,10 @@ float4 _DirectionalLightColor;
 uint _SphereCount;
 uint _PointLightCount;
 
+uint _MeshCount;
+uint _SizeOfVertexList;
+uint _SizeOfIndexList;
+
 struct Ray 
 {
     float3 origin;
@@ -42,8 +46,22 @@ struct Sphere
     float3 specular;
 };
 
+struct MeshData 
+{
+    uint triangleIndexStart;
+    uint triangleIndexEnd;
+    uint vertexIndexStart;
+    float3 position;
+    float scale;
+    float3 albedo;
+    float3 specular;
+};
+
 StructuredBuffer<Sphere> _Spheres;
 
+StructuredBuffer<float3> _VertexList;
+StructuredBuffer<uint> _IndexList;
+StructuredBuffer<MeshData> _MeshDataList;
 
 Ray CreateRay(float3 origin, float3 direction) 
 {
@@ -110,6 +128,91 @@ void IntersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere)
     }
 }
 
+void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 a, float3 b, float3 c) 
+{
+        a *= meshData.scale;
+        b *= meshData.scale;
+        c *= meshData.scale;
+        
+        a += meshData.position;
+        b += meshData.position;
+        c += meshData.position;
+        
+        float3 ab = a - b;
+        float3 ac = a - c;
+
+        // Intermediate products
+        float ei_hf, gf_di, dh_eg;
+
+        ei_hf = ac.y * ray.direction.z - ray.direction.y * ac.z;
+        gf_di = ray.direction.x * ac.z - ac.x * ray.direction.z;
+        dh_eg = ac.x * ray.direction.y - ac.y * ray.direction.x;
+
+        float ak_jb, jc_al, bl_kc;
+        float j,k,l;
+
+        j = a.x - ray.origin.x;
+        k = a.y - ray.origin.y;
+        l = a.z - ray.origin.z;
+
+        ak_jb = ab.x * k - j * ab.y;
+        jc_al = j * ab.z - ab.x * l;
+        bl_kc = ab.y * l - k * ab.z;
+
+        float M = ab.x * (ei_hf) + 
+                  ab.y * (gf_di) +
+                  ab.z * (dh_eg);
+
+        float t = - (ac.z * ak_jb +
+                   ac.y * jc_al +
+                   ac.x * bl_kc) / M;
+
+        // Check for intersection
+        if (t <= 0) {
+            //return false;
+        } else {
+            float gamma = (ray.direction.z * ak_jb +
+                           ray.direction.y * jc_al +
+                           ray.direction.x * bl_kc) / M; 
+
+            if (gamma < 0 || gamma > 1) {
+                //return false;
+            } else {
+                float beta = (j * ei_hf +
+                              k * gf_di +
+                              l * dh_eg) / M;
+                if (beta < 0 || beta > 1 - gamma) {
+                    //return false;
+                } else {
+                    // Fill out hit record
+                    if (bestHit.distance > t) {
+                        bestHit.distance = t;
+                        float3 normal = normalize(cross((b - a), (c - a)));
+                        bestHit.normal = normal;
+                        bestHit.position = ray.origin + t * ray.direction;
+                        bestHit.albedo = meshData.albedo;
+                        bestHit.specular = meshData.specular;
+                    }
+                    //return true;
+                }
+            }
+        }
+
+        //return false;
+}
+
+void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData) 
+{
+    for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i += 3) 
+    {
+        IntersectTriangle(ray, bestHit, meshData, 
+                                        _VertexList[_IndexList[i    ] + meshData.vertexIndexStart],
+                                        _VertexList[_IndexList[i + 1] + meshData.vertexIndexStart],
+                                        _VertexList[_IndexList[i + 2] + meshData.vertexIndexStart]
+                                        );
+    }
+}
+
 RayHit Trace(Ray ray)
 {
     RayHit bestHit = CreateRayHit();
@@ -117,6 +220,11 @@ RayHit Trace(Ray ray)
     
     for (uint i = 0; i < _SphereCount; i++)
         IntersectSphere(ray, bestHit, _Spheres[i]);
+    
+    for (uint i = 0; i < _MeshCount; i++) 
+    {
+        IntersectMesh(ray, bestHit, _MeshDataList[i]);
+    }
     
     return bestHit;
 }

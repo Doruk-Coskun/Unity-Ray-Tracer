@@ -9,6 +9,9 @@ public class RayTracingMaster : MonoBehaviour
     private RenderTexture _target;
 
     private ComputeBuffer _sphereBuffer;
+    private ComputeBuffer _MeshVertexBuffer;
+    private ComputeBuffer _MeshIndexBuffer;
+    private ComputeBuffer _MeshDataBuffer;
 
     public void SetUpScene()
     {
@@ -21,6 +24,23 @@ public class RayTracingMaster : MonoBehaviour
         {
             _sphereBuffer = new ComputeBuffer(SceneParser._SceneData._SphereCount, 40);
             _sphereBuffer.SetData(SceneParser._Spheres);
+        }
+
+        if (_MeshVertexBuffer != null)
+        {
+            _MeshVertexBuffer.Release();
+        }
+
+        if (SceneParser._GeometryData._MeshCount > 0)
+        {
+            _MeshVertexBuffer = new ComputeBuffer(SceneParser._GeometryData._SizeOfVertexList, 12);
+            _MeshVertexBuffer.SetData(SceneParser._GeometryData._VertexList);
+
+            _MeshIndexBuffer = new ComputeBuffer(SceneParser._GeometryData._SizeOfIndexList, 4);
+            _MeshIndexBuffer.SetData(SceneParser._GeometryData._IndexList);
+
+            _MeshDataBuffer = new ComputeBuffer(SceneParser._GeometryData._MeshCount, 52);
+            _MeshDataBuffer.SetData(SceneParser._GeometryData._MeshDataList);
         }
     }
 
@@ -61,6 +81,16 @@ public class RayTracingMaster : MonoBehaviour
         if (SceneParser._SceneData._SphereCount > 0 && _sphereBuffer != null)
         {
             RayTracingShader.SetBuffer(0, "_Spheres", _sphereBuffer);
+        }
+
+        RayTracingShader.SetInt("_MeshCount", SceneParser._GeometryData._MeshCount);
+        RayTracingShader.SetInt("_SizeOfVertexList", SceneParser._GeometryData._SizeOfVertexList);
+        RayTracingShader.SetInt("_SizeOfIndexList", SceneParser._GeometryData._SizeOfIndexList);
+        if (SceneParser._GeometryData._MeshCount > 0)
+        {
+            RayTracingShader.SetBuffer(0, "_VertexList", _MeshVertexBuffer);
+            RayTracingShader.SetBuffer(0, "_IndexList", _MeshIndexBuffer);
+            RayTracingShader.SetBuffer(0, "_MeshDataList", _MeshDataBuffer);
         }
     }
 

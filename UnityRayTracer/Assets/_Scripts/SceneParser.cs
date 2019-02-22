@@ -10,7 +10,8 @@ public class SceneParser : MonoBehaviour
     public enum GenerateScene
     {
         Random,
-        SceneEditor
+        SceneEditor,
+        FromXML
     }
 
     public RayTracingMaster rayTracingMaster;
@@ -43,6 +44,9 @@ public class SceneParser : MonoBehaviour
     public uint SpheresMax = 100;
     [ConditionalHide("generateScene", 0)]
     public float SpherePlacementRadius = 100.0f;
+
+    [ConditionalHide("generateScene", 2)]
+    public TextAsset XMLFile;
 
     public struct Sphere
     {

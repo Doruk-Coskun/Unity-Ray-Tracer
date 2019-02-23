@@ -1,14 +1,16 @@
 ﻿using UnityEngine;
 
-public struct MeshData
+public class MeshData
 {
+    public int _MeshID;
+
+    public int _MaterialID;
+
     public int _TriangleIndexStart;
     public int _TriangleIndexEnd;
     public int _VertexIndexStart;
 
-    public Vector3 position;
-    public float scale;
-
-    public Vector3 albedo;
-    public Vector3 specular;
+    public Vector3 position = Vector3.zero;
+    public float scale = 1;
+    public Vector3 rotation = Vector3.zero;
 }

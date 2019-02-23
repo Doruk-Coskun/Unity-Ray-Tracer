@@ -218,8 +218,10 @@ RayHit Trace(Ray ray)
     RayHit bestHit = CreateRayHit();
     IntersectGroundPlane(ray, bestHit);
     
-    for (uint i = 0; i < _SphereCount; i++)
+    for (uint i = 0; i < _SphereCount; i++) 
+    {
         IntersectSphere(ray, bestHit, _Spheres[i]);
+    }
     
     for (uint i = 0; i < _MeshCount; i++) 
     {

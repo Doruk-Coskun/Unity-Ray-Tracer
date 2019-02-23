@@ -11,5 +11,5 @@ public class MaterialData
     public Vector3 _Transparency = Vector3.zero;
 
     public float _PhongExponent = 0;
-    public float _refractionIndex = 0;
+    public float _RefractionIndex = 0;
 }

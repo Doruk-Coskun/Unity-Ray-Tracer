@@ -13,15 +13,15 @@ public class SceneParserEditor : Editor
 
         if (GUILayout.Button("Display Scene"))
         {
-            if (sceneParser.generateScene == SceneParser.GenerateScene.Random)
-            {
-                sceneParser.SetUpRandomScene();
-            }
+            //if (sceneParser.generateScene == SceneParser.GenerateScene.Random)
+            //{
+            //    sceneParser.SetUpRandomScene();
+            //}
 
-            else if (sceneParser.generateScene == SceneParser.GenerateScene.SceneEditor)
-            {
-                sceneParser.ParseSceneObjects();
-            }
+            //else if (sceneParser.generateScene == SceneParser.GenerateScene.SceneEditor)
+            //{
+            //    sceneParser.ParseSceneObjects();
+            //}
         }
     }
 }

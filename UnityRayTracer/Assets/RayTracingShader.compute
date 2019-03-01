@@ -4,23 +4,97 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> Result;
+
+static const float PI = 3.14159265f;
+
+uint _MaxRecursionDepth;
+
+/*-----Skybox-----*/
+
 Texture2D<float4> _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 
-static const float PI = 3.14159265f;
+float3 _BackgroundColor;
+
+/*-----Camera-----*/
 
 float4x4 _CameraToWorldMatrix;
 float4x4 _CameraInverseProjectionMatrix;
 
+/*-----Lights-----*/
+
 float4 _DirectionalLightDirection;
 float4 _DirectionalLightColor;
 
-uint _SphereCount;
+float3 _AmbientLight;
+
 uint _PointLightCount;
 
+struct PointLight 
+{
+    uint id;
+    float3 position;
+    float3 intensity;
+};
+
+StructuredBuffer<PointLight> _PointLightList;
+
+/*-----Material-----*/
+
+uint _MaterialCount;
+
+struct MaterialData 
+{
+    uint id;
+    float3 ambientRef;
+    float3 diffuseRef;
+    float3 specularRef;
+    float3 mirrorRef;
+    float3 transparency;
+    
+    float phongExponent;
+    float refractionIndex;
+};
+
+StructuredBuffer<MaterialData> _MaterialList;
+
+/*-----SceneGeometry-----*/
+
+uint _SphereCount;
 uint _MeshCount;
+
 uint _SizeOfVertexList;
-uint _SizeOfIndexList;
+uint _SizeOfTriangleList;
+
+struct Sphere
+{
+    float3 position;
+    float radius;
+    float3 albedo;
+    float3 specular;
+};
+
+struct MeshData 
+{
+    uint id;
+    uint materialID;
+    
+    uint triangleIndexStart;
+    uint triangleIndexEnd;
+    uint vertexIndexStart;
+    
+    float3 position;
+    float scale;
+    float3 rotation;
+};
+
+StructuredBuffer<Sphere> _SphereList;
+
+StructuredBuffer<float3> _VertexList;
+StructuredBuffer<float3> _TriangleList;
+StructuredBuffer<MeshData> _MeshDataList;
+
+/*-----Ray & RayHit-----*/
 
 struct Ray 
 {
@@ -38,30 +112,7 @@ struct RayHit
     float3 specular;
 };
 
-struct Sphere
-{
-    float3 position;
-    float radius;
-    float3 albedo;
-    float3 specular;
-};
-
-struct MeshData 
-{
-    uint triangleIndexStart;
-    uint triangleIndexEnd;
-    uint vertexIndexStart;
-    float3 position;
-    float scale;
-    float3 albedo;
-    float3 specular;
-};
-
-StructuredBuffer<Sphere> _Spheres;
-
-StructuredBuffer<float3> _VertexList;
-StructuredBuffer<uint> _IndexList;
-StructuredBuffer<MeshData> _MeshDataList;
+/*--------------------------*/
 
 Ray CreateRay(float3 origin, float3 direction) 
 {
@@ -190,8 +241,8 @@ void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 
                         float3 normal = normalize(cross((b - a), (c - a)));
                         bestHit.normal = normal;
                         bestHit.position = ray.origin + t * ray.direction;
-                        bestHit.albedo = meshData.albedo;
-                        bestHit.specular = meshData.specular;
+                        bestHit.albedo = _MaterialList[meshData.materialID].diffuseRef;
+                        bestHit.specular = _MaterialList[meshData.materialID].specularRef;
                     }
                     //return true;
                 }
@@ -206,9 +257,9 @@ void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData)
     for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i += 3) 
     {
         IntersectTriangle(ray, bestHit, meshData, 
-                                        _VertexList[_IndexList[i    ] + meshData.vertexIndexStart],
-                                        _VertexList[_IndexList[i + 1] + meshData.vertexIndexStart],
-                                        _VertexList[_IndexList[i + 2] + meshData.vertexIndexStart]
+                                        _VertexList[_TriangleList[i].x + meshData.vertexIndexStart],
+                                        _VertexList[_TriangleList[i].y + meshData.vertexIndexStart],
+                                        _VertexList[_TriangleList[i].z + meshData.vertexIndexStart]
                                         );
     }
 }
@@ -220,7 +271,7 @@ RayHit Trace(Ray ray)
     
     for (uint i = 0; i < _SphereCount; i++) 
     {
-        IntersectSphere(ray, bestHit, _Spheres[i]);
+        IntersectSphere(ray, bestHit, _SphereList[i]);
     }
     
     for (uint i = 0; i < _MeshCount; i++) 

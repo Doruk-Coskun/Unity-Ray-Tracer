@@ -1,15 +1,15 @@
 ﻿using UnityEngine;
 
-public class MaterialData
+public struct MaterialData
 {
-    public int _ID = 0;
+    public int _ID;
 
-    public Vector3 _AmbientReflectense = Vector3.zero;
-    public Vector3 _DiffuseReflectense = Vector3.zero;
-    public Vector3 _SpecularReflectense = Vector3.zero;
-    public Vector3 _MirrorReflectance = Vector3.zero;
-    public Vector3 _Transparency = Vector3.zero;
+    public Vector3 _AmbientReflectense;
+    public Vector3 _DiffuseReflectense;
+    public Vector3 _SpecularReflectense;
+    public Vector3 _MirrorReflectance;
+    public Vector3 _Transparency;
 
-    public float _PhongExponent = 0;
-    public float _RefractionIndex = 0;
+    public float _PhongExponent;
+    public float _RefractionIndex;
 }

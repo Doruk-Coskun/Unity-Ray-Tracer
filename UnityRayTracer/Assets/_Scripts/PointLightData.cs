@@ -1,8 +1,8 @@
 ﻿using UnityEngine;
 
-public class PointLightData
+public struct PointLightData
 {
-    public int _ID = 0;
-    public Vector3 _Position = Vector3.zero;
-    public Vector3 _Intensity = Vector3.zero;
+    public int _ID;
+    public Vector3 _Position;
+    public Vector3 _Intensity;
 }

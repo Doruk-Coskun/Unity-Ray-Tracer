@@ -17,6 +17,9 @@ public class SceneParser : MonoBehaviour
 
     public RayTracingMaster rayTracingMaster;
 
+    [HideInInspector]
+    public static SceneData _SceneData = new SceneData();
+
     [SerializeField]
     private Camera _Camera;
     [SerializeField]
@@ -64,13 +67,13 @@ public class SceneParser : MonoBehaviour
             //ParseSceneObjects();
             //break;
             case GenerateScene.FromXML:
-                SceneXMLParser.LoadFromXML(XMLFile);
+                SceneXMLParser.LoadFromXML(XMLFile, ref _SceneData);
                 break;
             default:
                 break;
         }
 
-        //SetSceneData();
+        SetSceneData();
         rayTracingMaster.SetUpScene();
     }
 
@@ -119,7 +122,6 @@ public class SceneParser : MonoBehaviour
     //        newMeshData.scale = meshObject.localScale.x;
 
     //        Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
-
     //        _GeometryData._VertexList.AddRange(mesh.vertices);
     //        _GeometryData._SizeOfVertexList += mesh.vertexCount;
 
@@ -166,20 +168,34 @@ public class SceneParser : MonoBehaviour
     //    _SceneData._SphereCount = _Spheres.Count;
     //}
 
-    //private void SetSceneData()
-    //{
-    //    _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
-    //    _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
+    private void SetSceneData()
+    {
 
-    //    _SceneData._DirectionalLightDirection = _DirectionalLight.transform.forward;
-    //    _SceneData._DirectionalLightColor = new Vector3(
-    //                                            _DirectionalLight.color.r,
-    //                                            _DirectionalLight.color.g,
-    //                                            _DirectionalLight.color.b
-    //                                                    );
-    //    _SceneData._DirectionalLightIntensity = _DirectionalLight.intensity;
+        //TODO: Fix the camera rotation
+        _Camera.transform.position = _SceneData._CameraDatas[0]._Position;
+        _Camera.transform.forward =  _SceneData._CameraDatas[0]._Gaze;
+        _Camera.transform.up = _SceneData._CameraDatas[0]._Up;
 
-    //}
+
+        _Camera.transform.right = -Vector3.Cross(_SceneData._CameraDatas[0]._Gaze,
+                                                _SceneData._CameraDatas[0]._Up
+                                                );
+
+        _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
+        _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
+
+        if (_DirectionalLight)
+        {
+            _SceneData._DirectLightData._DirectionalLightDirection = _DirectionalLight.transform.forward;
+            _SceneData._DirectLightData._DirectionalLightColor = new Vector3(
+                                                    _DirectionalLight.color.r,
+                                                    _DirectionalLight.color.g,
+                                                    _DirectionalLight.color.b
+                                                            );
+            _SceneData._DirectLightData._DirectionalLightIntensity = _DirectionalLight.intensity;
+        }
+
+    }
 
     //public void SetUpRandomScene()
     //{

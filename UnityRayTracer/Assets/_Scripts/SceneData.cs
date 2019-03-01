@@ -1,47 +1,50 @@
 ﻿using System.Collections.Generic;
+using System.Xml.Serialization;
 using UnityEngine;
 
-
-public static class SceneData
+public class SceneData
 {
-    public static int _MaxRecursionDepth;
-    public static Vector3 _BackGroundColor;
+    public int _MaxRecursionDepth = 8;
+
+    public Vector3 _BackGroundColor = Vector3.zero;
 
     /*-----Cameras-------*/
 
-    public static List<CameraData> _CameraDatas = new List<CameraData>();
+    public List<CameraData> _CameraDatas = new List<CameraData>();
 
-    public static Matrix4x4 _CameraToWorldMatrix;
-    public static Matrix4x4 _CameraInverseProjectionMatrix;
+    public Matrix4x4 _CameraToWorldMatrix;
+    public Matrix4x4 _CameraInverseProjectionMatrix;
 
     /*-----Lights-------*/
 
-    public static Vector3 _AmbientLight;
+    public Vector3 _AmbientLight = Vector3.zero;
 
-    public static int _PointLightCount = 0;
+    public int _PointLightCount = 0;
 
-    public static List<PointLightData> _PointLightDatas = new List<PointLightData>();
+    public List<PointLightData> _PointLightDatas = new List<PointLightData>();
 
     // TODO: Create custome struct in shader. Maybe use sendFloats?
 
-    public static DirectLightData _DirectLightData;
+    public DirectLightData _DirectLightData = new DirectLightData();
 
     /*-----Materials-------*/
 
 
-    public static int _MaterialCount;
-    public static List<MaterialData> _MaterialDatas = new List<MaterialData>();
+    public int _MaterialCount = 0;
+    public List<MaterialData> _MaterialDatas = new List<MaterialData>();
 
     /*-----GeometryData-------*/
 
-    public static int _SphereCount = 0;
-    public static List<Sphere> _Spheres = new List<Sphere>();
+    public int _SphereCount = 0;
+    public List<Sphere> _Spheres = new List<Sphere>();
 
-    public static int _MeshCount = 0;
-    public static int _SizeOfVertexList = 0;
-    public static int _SizeOfIndexList = 0;
+    public int _MeshCount = 0;
+    public int _SizeOfVertexList = 0;
+    public int _SizeOfTriangleList = 0;
 
-    public static List<MeshData> _MeshDataList = new List<MeshData>();
-    public static List<Vector3> _VertexList = new List<Vector3>();
-    public static List<int> _IndexList = new List<int>();
+    public List<MeshData> _MeshDataList = new List<MeshData>();
+    public List<Vector3> _VertexList = new List<Vector3>();
+
+    // TODO: Update so that it holds normal vectors too
+    public List<Vector3> _TriangleList = new List<Vector3>();
 }

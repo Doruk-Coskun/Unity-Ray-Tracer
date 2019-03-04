@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,48 +10,39 @@ public class SceneParser : MonoBehaviour
 
     public enum GenerateScene
     {
-        Random,
-        SceneEditor
+        SceneEditor,
+        FromXML
     }
 
     public RayTracingMaster rayTracingMaster;
 
-    [SerializeField]
-    private Camera _Camera;
-    [SerializeField]
-    private Light _DirectionalLight;
-
     [HideInInspector]
     public static SceneData _SceneData;
-    public static GeometryData _GeometryData;
 
-    [HideInInspector]
-    public static List<Sphere> _Spheres = new List<Sphere>();
-
-    [HideInInspector]
-    public static List<Light> _PointLights = new List<Light>();
+    [SerializeField]
+    private Camera _Camera;
 
     [SerializeField]
     public GenerateScene generateScene;
 
-    [ConditionalHide("generateScene", 1)]
+    [ConditionalHide("generateScene", 0)]
+    [SerializeField]
+    private int cameraNo;
+    [ConditionalHide("generateScene", 0)]
+    [SerializeField]
+    private int maxRecursionDepth = 8;
+    [ConditionalHide("generateScene", 0)]
+    [SerializeField]
+    private Color backgroundColor = Color.black;
+    [ConditionalHide("generateScene", 0)]
+    [SerializeField]
+    private Color ambientLight = Color.black;
+    [ConditionalHide("generateScene", 0)]
     [SerializeField]
     private bool realtimeUpdate = false;
 
-    [ConditionalHide("generateScene", 0)]
-    public Vector2 SphereRadius = new Vector2(3.0f, 8.0f);
-    [ConditionalHide("generateScene", 0)]
-    public uint SpheresMax = 100;
-    [ConditionalHide("generateScene", 0)]
-    public float SpherePlacementRadius = 100.0f;
-
-    public struct Sphere
-    {
-        public Vector3 position;
-        public float radius;
-        public Vector3 albedo;
-        public Vector3 specular;
-    };
+    [ConditionalHide("generateScene", 1)]
+    public TextAsset XMLFile;
 
     private void Awake()
     {
@@ -64,26 +56,19 @@ public class SceneParser : MonoBehaviour
         }
 
         DontDestroyOnLoad(gameObject);
-
-        _SceneData = new SceneData();
-        _GeometryData = new GeometryData();
     }
 
     private void Start()
     {
         switch (generateScene)
         {   
-            case GenerateScene.Random:
-                SetUpRandomScene();
-                break;
             case GenerateScene.SceneEditor:
-                ParseSceneObjects();
+                SetSceneData();
                 break;
             default:
                 break;
         }
 
-        SetSceneData();
         rayTracingMaster.SetUpScene();
     }
 
@@ -93,138 +78,178 @@ public class SceneParser : MonoBehaviour
 
         if (generateScene == GenerateScene.SceneEditor && realtimeUpdate)
         {
-            ParseSceneObjects();
+            SetSceneData();
+            rayTracingMaster.SetUpScene();
         }
     }
 
-    public void ParseSceneObjects()
+    public void SetSceneData()
+    {
+        _SceneData = new SceneData();
+
+        _SceneData._MaxRecursionDepth = maxRecursionDepth;
+
+        SetBackgroundColor();
+        ParseSceneCameras();
+        ParseSceneLights();
+        ParseSceneObjects();
+    }
+
+    private void SetBackgroundColor()
+    {
+        _SceneData._BackGroundColor = new Vector3(
+                                            backgroundColor.r,
+                                            backgroundColor.g,
+                                            backgroundColor.b
+                                                 );
+    }
+
+    private void ParseSceneCameras()
+    {
+        _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
+        _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
+    }
+
+    private void ParseSceneObjects()
     {
         ParseSceneSpheres();
-        ParseScenePointLights();
         ParseSceneMeshes();
+    }
 
-        rayTracingMaster.SetUpScene();
+    private void ParseSceneLights()
+    {
+        ParseAmbientLight();
+        ParseDirectLight();
+        ParseScenePointLights();
+    }
+
+    private void ParseAmbientLight()
+    {
+        _SceneData._AmbientLight = new Vector3(
+                                            ambientLight.r,
+                                            ambientLight.g,
+                                            ambientLight.b
+                                              );
+    }
+
+    private void ParseDirectLight()
+    {
+        GameObject directLight = GameObject.Find("SceneLights/DirectLight");
+        _SceneData._DirectLightData._Direction = directLight.GetComponent<Transform>().forward;
+        _SceneData._DirectLightData._Intensity = directLight.GetComponent<Light>().intensity * 
+                                                 new Vector3(
+                                                          directLight.GetComponent<Light>().color.r,
+                                                          directLight.GetComponent<Light>().color.g,
+                                                          directLight.GetComponent<Light>().color.b
+                                                            );
     }
 
     private void ParseScenePointLights()
     {
+        Transform pointLights = GameObject.Find("SceneLights/PointLights").GetComponent<Transform>();
 
+        foreach (Transform pointLight in pointLights)
+        {
+            PointLightData newPointLightData = new PointLightData();
+            Light light = pointLight.GetComponent<Light>();
+
+            newPointLightData._Position = pointLight.position;
+            newPointLightData._Intensity = light.intensity * new Vector3(
+                                                                        light.color.r,
+                                                                        light.color.g,
+                                                                        light.color.b
+                                                                        );
+            _SceneData._PointLightCount++;
+            _SceneData._PointLightDatas.Add(newPointLightData);
+        }
     }
 
     private void ParseSceneMeshes()
     {
-        _GeometryData._MeshCount = 0;
-        _GeometryData._SizeOfIndexList = 0;
-        _GeometryData._SizeOfVertexList = 0;
-
-        _GeometryData._MeshDataList.Clear();
-        _GeometryData._VertexList.Clear();
-        _GeometryData._IndexList.Clear();
-
         Transform meshObjects = GameObject.Find("SceneGeometry/Meshes").GetComponent<Transform>();
 
         foreach (Transform meshObject in meshObjects)
         {
             MeshData newMeshData = new MeshData();
-            newMeshData._TriangleIndexStart = _GeometryData._SizeOfIndexList;
-            newMeshData._VertexIndexStart = _GeometryData._SizeOfVertexList;
-            newMeshData.position = meshObject.position;
-            newMeshData.scale = meshObject.localScale.x;
+            newMeshData._TriangleIndexStart = _SceneData._SizeOfTriangleList;
+            newMeshData._VertexIndexStart = _SceneData._SizeOfVertexList;
+            Vector3 position = meshObject.position;
+            float scale = meshObject.localScale.x;
 
             Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
 
-            _GeometryData._VertexList.AddRange(mesh.vertices);
-            _GeometryData._SizeOfVertexList += mesh.vertexCount;
+            Vector3[] newVertexList = mesh.vertices;
 
-            _GeometryData._IndexList.AddRange(mesh.triangles);
-            _GeometryData._SizeOfIndexList += mesh.triangles.Length;
+            for (int i = 0; i < newVertexList.Length; i++)
+            {
+                newVertexList[i] = meshObject.rotation * newVertexList[i];
+                newVertexList[i] = meshObject.localScale.x * newVertexList[i];
+                newVertexList[i] = meshObject.position + newVertexList[i];
+            }
+
+            _SceneData._VertexList.AddRange(newVertexList);
+            _SceneData._SizeOfVertexList += mesh.vertexCount;
+
+            int iterator = 0;
+
+            while (iterator < mesh.triangles.Length)
+            {
+                Vector3 newTriangle = new Vector3();
+                newTriangle.x = mesh.triangles[iterator    ];
+                newTriangle.y = mesh.triangles[iterator + 1];
+                newTriangle.z = mesh.triangles[iterator + 2];
+
+                iterator += 3;
+                _SceneData._TriangleList.Add(newTriangle);
+            }
+
+            _SceneData._SizeOfTriangleList += _SceneData._TriangleList.Count;
 
             // TODO: Dangerous, be careful of this!
-            newMeshData._TriangleIndexEnd = _GeometryData._SizeOfIndexList;
+            newMeshData._TriangleIndexEnd = _SceneData._SizeOfTriangleList;
 
-            Material meshMat = meshObject.GetComponent<Renderer>().material;
+            AddMaterialData(meshObject);
 
-            newMeshData.albedo = new Vector3(meshMat.color.r, meshMat.color.g, meshMat.color.b);
-            newMeshData.specular = new Vector3(meshMat.GetFloat("_Metallic"),
-                                               meshMat.GetFloat("_Metallic"),
-                                               meshMat.GetFloat("_Metallic")
-                                               );
+            newMeshData._MaterialID = _SceneData._MaterialCount - 1;
 
-            _GeometryData._MeshDataList.Add(newMeshData);
-            _GeometryData._MeshCount++;
+            _SceneData._MeshDataList.Add(newMeshData);
+            _SceneData._MeshCount++;
         }
     }
 
     private void ParseSceneSpheres()
     {
-        _Spheres.Clear();
         Transform spheres = GameObject.Find("SceneGeometry/Spheres").GetComponent<Transform>();
 
         foreach (Transform sphere in spheres)
         {
             Sphere newSphere = new Sphere();
-            newSphere.position = sphere.position;
-            newSphere.radius = sphere.localScale.x / 2;
+            newSphere._Position = sphere.position;
+            newSphere._Radius = sphere.localScale.x / 2;
 
-            Material sphereMat = sphere.GetComponent<Renderer>().material;
-            newSphere.albedo = new Vector3(sphereMat.color.r, sphereMat.color.g, sphereMat.color.b);
-            newSphere.specular = new Vector3(sphereMat.GetFloat("_Metallic"),
-                                             sphereMat.GetFloat("_Metallic"),
-                                             sphereMat.GetFloat("_Metallic")
-                                             );
+            AddMaterialData(sphere);
 
-            _Spheres.Add(newSphere);
-        }
+            newSphere._MaterialID = _SceneData._MaterialCount - 1;
 
-        _SceneData._SphereCount = _Spheres.Count;
-    }
-
-    private void SetSceneData()
-    {
-        _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
-        _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
-
-        _SceneData._DirectionalLightDirection = _DirectionalLight.transform.forward;
-        _SceneData._DirectionalLightColor = new Vector3(
-                                                _DirectionalLight.color.r,
-                                                _DirectionalLight.color.g,
-                                                _DirectionalLight.color.b
-                                                        );
-        _SceneData._DirectionalLightIntensity = _DirectionalLight.intensity;
-
-    }
-
-    public void SetUpRandomScene()
-    {
-        _Spheres.Clear();
-
-        // Add a number of random spheres
-        for (int i = 0; i < SpheresMax; i++)
-        {
-            Sphere sphere = new Sphere();
-            // Radius and radius
-            sphere.radius = SphereRadius.x + Random.value * (SphereRadius.y - SphereRadius.x);
-            Vector2 randomPos = Random.insideUnitCircle * SpherePlacementRadius;
-            sphere.position = new Vector3(randomPos.x, sphere.radius, randomPos.y);
-            // Reject spheres that are intersecting others
-            foreach (Sphere other in _Spheres)
-            {
-                float minDist = sphere.radius + other.radius;
-                if (Vector3.SqrMagnitude(sphere.position - other.position) < minDist * minDist)
-                    goto SkipSphere;
-            }
-            // Albedo and specular color
-            Color color = Random.ColorHSV();
-            bool metal = Random.value < 0.5f;
-            sphere.albedo = metal ? Vector3.zero : new Vector3(color.r, color.g, color.b);
-            sphere.specular = metal ? new Vector3(color.r, color.g, color.b) : Vector3.one * 0.04f;
-            // Add the sphere to the list
-            _Spheres.Add(sphere);
+            _SceneData._Spheres.Add(newSphere);
             _SceneData._SphereCount++;
-        SkipSphere:
-            continue;
         }
+    }
 
-        rayTracingMaster.SetUpScene();
+    private void AddMaterialData(Transform newObject)
+    {
+        MaterialData newMaterialData = new MaterialData();
+        Material meshMat = newObject.GetComponent<Renderer>().material;
+
+        newMaterialData._AmbientReflectance = meshMat.GetVector("_AmbientReflectance");
+        newMaterialData._DiffuseReflectance = meshMat.GetVector("_DiffuseReflectance");
+        newMaterialData._SpecularReflectance = meshMat.GetVector("_SpecularReflectance");
+        newMaterialData._MirrorReflectance = meshMat.GetVector("_MirrorReflectance");
+        newMaterialData._Transparency = meshMat.GetVector("_Transparency");
+        newMaterialData._PhongExponent = meshMat.GetFloat("_PhongExponent");
+        newMaterialData._RefractionIndex = meshMat.GetFloat("_RefractionIndex");
+
+        _SceneData._MaterialDatas.Add(newMaterialData);
+        _SceneData._MaterialCount++;
     }
 }

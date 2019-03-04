@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class RayTracingMaster : MonoBehaviour
 {
+    private SceneParser _SceneParser;
+
     public ComputeShader RayTracingShader;
     public Texture SkyboxTexture;
 
@@ -12,6 +14,13 @@ public class RayTracingMaster : MonoBehaviour
     private ComputeBuffer _MeshVertexBuffer;
     private ComputeBuffer _MeshIndexBuffer;
     private ComputeBuffer _MeshDataBuffer;
+    private ComputeBuffer _MaterialBuffer;
+    private ComputeBuffer _PointLightBuffer;
+
+    public void Start()
+    {
+        _SceneParser = GameObject.Find("SceneParser").GetComponent<SceneParser>();
+    }
 
     public void SetUpScene()
     {
@@ -22,31 +31,46 @@ public class RayTracingMaster : MonoBehaviour
         // TODO: Mind the sizeof(Spheres).
         if (SceneParser._SceneData._SphereCount > 0)
         {
-            _sphereBuffer = new ComputeBuffer(SceneParser._SceneData._SphereCount, 40);
-            _sphereBuffer.SetData(SceneParser._Spheres);
+            _sphereBuffer = new ComputeBuffer(SceneParser._SceneData._SphereCount, 20);
+            _sphereBuffer.SetData(SceneParser._SceneData._Spheres);
         }
 
         if (_MeshVertexBuffer != null)
         {
             _MeshVertexBuffer.Release();
+            _MeshIndexBuffer.Release();
+            _MeshDataBuffer.Release();
         }
 
-        if (SceneParser._GeometryData._MeshCount > 0)
+        if (SceneParser._SceneData._MeshCount > 0)
         {
-            _MeshVertexBuffer = new ComputeBuffer(SceneParser._GeometryData._SizeOfVertexList, 12);
-            _MeshVertexBuffer.SetData(SceneParser._GeometryData._VertexList);
+            _MeshVertexBuffer = new ComputeBuffer(SceneParser._SceneData._SizeOfVertexList, 12);
+            _MeshVertexBuffer.SetData(SceneParser._SceneData._VertexList);
 
-            _MeshIndexBuffer = new ComputeBuffer(SceneParser._GeometryData._SizeOfIndexList, 4);
-            _MeshIndexBuffer.SetData(SceneParser._GeometryData._IndexList);
+            _MeshIndexBuffer = new ComputeBuffer(SceneParser._SceneData._SizeOfTriangleList, 12);
+            _MeshIndexBuffer.SetData(SceneParser._SceneData._TriangleList);
 
-            _MeshDataBuffer = new ComputeBuffer(SceneParser._GeometryData._MeshCount, 52);
-            _MeshDataBuffer.SetData(SceneParser._GeometryData._MeshDataList);
+            _MeshDataBuffer = new ComputeBuffer(SceneParser._SceneData._MeshCount, 16);
+            _MeshDataBuffer.SetData(SceneParser._SceneData._MeshDataList);
         }
+
+        if (SceneParser._SceneData._MaterialCount > 0)
+        {
+            _MaterialBuffer = new ComputeBuffer(SceneParser._SceneData._MaterialCount, 68);
+            _MaterialBuffer.SetData(SceneParser._SceneData._MaterialDatas);
+        }
+
+        if (SceneParser._SceneData._PointLightCount > 0)
+        {
+            _PointLightBuffer = new ComputeBuffer(SceneParser._SceneData._PointLightCount, 24);
+            _PointLightBuffer.SetData(SceneParser._SceneData._PointLightDatas);
+        }
+
+        SetShaderParameters();
     }
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        SetShaderParameters();
         Renderer(destination);
     }
 
@@ -65,31 +89,52 @@ public class RayTracingMaster : MonoBehaviour
 
     public void SetShaderParameters()
     {
+        RayTracingShader.SetInt("_MaxRecursionDepth", SceneParser._SceneData._MaxRecursionDepth);
+
+
+        RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
+        RayTracingShader.SetVector("_BackgroundColor", SceneParser._SceneData._BackGroundColor);
+
+
         RayTracingShader.SetMatrix("_CameraToWorldMatrix", SceneParser._SceneData._CameraToWorldMatrix);
         RayTracingShader.SetMatrix("_CameraInverseProjectionMatrix", SceneParser._SceneData._CameraInverseProjectionMatrix);
-        RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
 
-        Vector3 d = SceneParser._SceneData._DirectionalLightDirection;
-        RayTracingShader.SetVector("_DirectionalLightDirection", 
-                   new Vector4(d.x, d.y, d.z, 1));
 
-        Vector3 l = SceneParser._SceneData._DirectionalLightColor;
-        RayTracingShader.SetVector("_DirectionalLightColor",
-                   new Vector4(l.x, l.y, l.z, SceneParser._SceneData._DirectionalLightIntensity));
+        RayTracingShader.SetVector("_DirectLightDirection", 
+                   SceneParser._SceneData._DirectLightData._Direction);
+
+        RayTracingShader.SetVector("_DirectLightIntensity",
+                   SceneParser._SceneData._DirectLightData._Intensity);
+
+        RayTracingShader.SetVector("_AmbientLight", SceneParser._SceneData._AmbientLight);
+
+        RayTracingShader.SetInt("_PointLightCount", SceneParser._SceneData._PointLightCount);
+        if (SceneParser._SceneData._PointLightCount > 0)
+        {
+            RayTracingShader.SetBuffer(0, "_PointLightList", _PointLightBuffer);
+        }
+
+
+        RayTracingShader.SetInt("_MaterialCount", SceneParser._SceneData._MaterialCount);
+        if (SceneParser._SceneData._MaterialCount > 0)
+        {
+            RayTracingShader.SetBuffer(0, "_MaterialList", _MaterialBuffer);
+        }
+
 
         RayTracingShader.SetInt("_SphereCount", SceneParser._SceneData._SphereCount);
         if (SceneParser._SceneData._SphereCount > 0 && _sphereBuffer != null)
         {
-            RayTracingShader.SetBuffer(0, "_Spheres", _sphereBuffer);
+            RayTracingShader.SetBuffer(0, "_SphereList", _sphereBuffer);
         }
 
-        RayTracingShader.SetInt("_MeshCount", SceneParser._GeometryData._MeshCount);
-        RayTracingShader.SetInt("_SizeOfVertexList", SceneParser._GeometryData._SizeOfVertexList);
-        RayTracingShader.SetInt("_SizeOfIndexList", SceneParser._GeometryData._SizeOfIndexList);
-        if (SceneParser._GeometryData._MeshCount > 0)
+        RayTracingShader.SetInt("_MeshCount", SceneParser._SceneData._MeshCount);
+        RayTracingShader.SetInt("_SizeOfVertexList", SceneParser._SceneData._SizeOfVertexList);
+        RayTracingShader.SetInt("_SizeOfTriangleList", SceneParser._SceneData._SizeOfTriangleList);
+        if (SceneParser._SceneData._MeshCount > 0 && _MeshDataBuffer != null)
         {
             RayTracingShader.SetBuffer(0, "_VertexList", _MeshVertexBuffer);
-            RayTracingShader.SetBuffer(0, "_IndexList", _MeshIndexBuffer);
+            RayTracingShader.SetBuffer(0, "_TriangleList", _MeshIndexBuffer);
             RayTracingShader.SetBuffer(0, "_MeshDataList", _MeshDataBuffer);
         }
     }
@@ -103,8 +148,13 @@ public class RayTracingMaster : MonoBehaviour
                 _target.Release();
             }
 
-            _target = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            _target = new RenderTexture(Screen.width, Screen.height , 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+
+            //_target = new RenderTexture((int)SceneParser._SceneData._CameraDatas[0]._ImageResolution.x,
+            //                            (int)SceneParser._SceneData._CameraDatas[0]._ImageResolution.y,
+            //                            0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             _target.enableRandomWrite = true;
+
             _target.Create();
         }
     }

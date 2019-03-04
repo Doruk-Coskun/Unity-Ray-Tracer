@@ -4,23 +4,89 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> Result;
+
+static const float PI = 3.14159265f;
+
+uint _MaxRecursionDepth;
+
+/*-----Skybox-----*/
+
 Texture2D<float4> _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 
-static const float PI = 3.14159265f;
+float3 _BackgroundColor;
+
+/*-----Camera-----*/
 
 float4x4 _CameraToWorldMatrix;
 float4x4 _CameraInverseProjectionMatrix;
 
-float4 _DirectionalLightDirection;
-float4 _DirectionalLightColor;
+/*-----Lights-----*/
 
-uint _SphereCount;
+float3 _DirectLightDirection;
+float3 _DirectLightIntensity;
+
+float3 _AmbientLight;
+
 uint _PointLightCount;
 
+struct PointLight 
+{
+    float3 position;
+    float3 intensity;
+};
+
+StructuredBuffer<PointLight> _PointLightList;
+
+/*-----Material-----*/
+
+uint _MaterialCount;
+
+struct MaterialData 
+{
+    float3 ambientRef;
+    float3 diffuseRef;
+    float3 specularRef;
+    float3 mirrorRef;
+    float3 transparency;
+    
+    float phongExponent;
+    float refractionIndex;
+};
+
+StructuredBuffer<MaterialData> _MaterialList;
+
+/*-----SceneGeometry-----*/
+
+uint _SphereCount;
 uint _MeshCount;
+
 uint _SizeOfVertexList;
-uint _SizeOfIndexList;
+uint _SizeOfTriangleList;
+
+struct Sphere
+{
+    uint materialID;
+    float3 position;
+    float radius;
+};
+
+struct MeshData 
+{
+    uint materialID;
+    
+    uint triangleIndexStart;
+    uint triangleIndexEnd;
+    uint vertexIndexStart;
+};
+
+StructuredBuffer<Sphere> _SphereList;
+
+StructuredBuffer<float3> _VertexList;
+StructuredBuffer<float3> _TriangleList;
+StructuredBuffer<MeshData> _MeshDataList;
+
+/*-----Ray & RayHit-----*/
 
 struct Ray 
 {
@@ -34,40 +100,16 @@ struct RayHit
     float3 position;
     float distance;
     float3 normal;
-    float3 albedo;
-    float3 specular;
+    uint materialID;
 };
 
-struct Sphere
-{
-    float3 position;
-    float radius;
-    float3 albedo;
-    float3 specular;
-};
-
-struct MeshData 
-{
-    uint triangleIndexStart;
-    uint triangleIndexEnd;
-    uint vertexIndexStart;
-    float3 position;
-    float scale;
-    float3 albedo;
-    float3 specular;
-};
-
-StructuredBuffer<Sphere> _Spheres;
-
-StructuredBuffer<float3> _VertexList;
-StructuredBuffer<uint> _IndexList;
-StructuredBuffer<MeshData> _MeshDataList;
+/*--------------------------*/
 
 Ray CreateRay(float3 origin, float3 direction) 
 {
     Ray ray;
     ray.origin = origin;
-    ray.direction = direction;
+    ray.direction = normalize(direction);
     ray.energy = float3(1.0f, 1.0f, 1.0f);
     return ray;
 }
@@ -78,8 +120,7 @@ RayHit CreateRayHit()
     rayHit.position = float3(0.0f, 0.0f, 0.0f);
     rayHit.distance = 1.#INF;
     rayHit.normal = float3(0.0f, 0.0f, 0.0f);
-    rayHit.specular = float3(0.0f, 0.0f, 0.0f);
-    rayHit.albedo = float3(0.0f, 0.0f, 0.0f);
+    rayHit.materialID = 0;
     
     return rayHit;
 }
@@ -93,19 +134,6 @@ Ray CreateCameraRay(float2 uv)
     direction = normalize(direction);
     
     return CreateRay(origin, direction);
-}
-
-void IntersectGroundPlane(Ray ray, inout RayHit bestHit)
-{
-    float t = -ray.origin.y / ray.direction.y;
-    if (t > 0 && t < bestHit.distance)
-    {
-        bestHit.distance = t;
-        bestHit.position = ray.origin + t * ray.direction;
-        bestHit.normal = float3(0.0f, 1.0f, 0.0f);
-        bestHit.albedo = float3(0.5f, 0.5f, 0.5f);
-        bestHit.specular = float3(0.5f, 0.5f, 0.5f);
-    }
 }
 
 void IntersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere)
@@ -123,21 +151,12 @@ void IntersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere)
         bestHit.distance = t;
         bestHit.position = ray.origin + t * ray.direction;
         bestHit.normal = normalize(bestHit.position - sphere.position);
-        bestHit.albedo = sphere.albedo;
-        bestHit.specular = sphere.specular;
+        bestHit.materialID = sphere.materialID;
     }
 }
 
 void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 a, float3 b, float3 c) 
-{
-        a *= meshData.scale;
-        b *= meshData.scale;
-        c *= meshData.scale;
-        
-        a += meshData.position;
-        b += meshData.position;
-        c += meshData.position;
-        
+{        
         float3 ab = a - b;
         float3 ac = a - c;
 
@@ -190,8 +209,7 @@ void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 
                         float3 normal = normalize(cross((b - a), (c - a)));
                         bestHit.normal = normal;
                         bestHit.position = ray.origin + t * ray.direction;
-                        bestHit.albedo = meshData.albedo;
-                        bestHit.specular = meshData.specular;
+                        bestHit.materialID = meshData.materialID;
                     }
                     //return true;
                 }
@@ -203,12 +221,12 @@ void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 
 
 void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData) 
 {
-    for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i += 3) 
+    for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i ++) 
     {
         IntersectTriangle(ray, bestHit, meshData, 
-                                        _VertexList[_IndexList[i    ] + meshData.vertexIndexStart],
-                                        _VertexList[_IndexList[i + 1] + meshData.vertexIndexStart],
-                                        _VertexList[_IndexList[i + 2] + meshData.vertexIndexStart]
+                                        _VertexList[_TriangleList[i].x + meshData.vertexIndexStart],
+                                        _VertexList[_TriangleList[i].y + meshData.vertexIndexStart],
+                                        _VertexList[_TriangleList[i].z + meshData.vertexIndexStart]
                                         );
     }
 }
@@ -216,10 +234,12 @@ void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData)
 RayHit Trace(Ray ray)
 {
     RayHit bestHit = CreateRayHit();
-    IntersectGroundPlane(ray, bestHit);
+    //IntersectGroundPlane(ray, bestHit);
     
-    for (uint i = 0; i < _SphereCount; i++)
-        IntersectSphere(ray, bestHit, _Spheres[i]);
+    for (uint i = 0; i < _SphereCount; i++) 
+    {
+        IntersectSphere(ray, bestHit, _SphereList[i]);
+    }
     
     for (uint i = 0; i < _MeshCount; i++) 
     {
@@ -229,34 +249,90 @@ RayHit Trace(Ray ray)
     return bestHit;
 }
 
+float3 CalculatePointLight(RayHit hit, uint PLIndex, float3 viewVector) 
+{
+    float3 color = float3(0.0, 0.0, 0.0);
+
+    float3 toLightVector = _PointLightList[PLIndex].position - hit.position;
+    float distance = length(toLightVector);
+        
+    Ray toLightRay = CreateRay(hit.position + hit.normal * 0.001f, normalize(toLightVector));
+    RayHit shadowHit = Trace(toLightRay);
+    
+    if (shadowHit.distance < distance) 
+    {
+        return color;
+    }
+    else 
+    {
+        // Diffuse shading
+        color += saturate(dot(hit.normal, toLightRay.direction)) * _PointLightList[PLIndex].intensity *
+            _MaterialList[hit.materialID].diffuseRef / (distance * distance);
+        
+        // Specular shading
+        //Calculations of half vector and 
+        float3 h = normalize(toLightRay.direction + -viewVector);
+        float NdotH = saturate(dot(h, hit.normal));
+        //Calculate Blinn-Phong Shader
+        color +=  pow(NdotH, _MaterialList[hit.materialID].phongExponent) *
+            _MaterialList[hit.materialID].specularRef * _PointLightList[PLIndex].intensity / (distance * distance);
+        
+        
+        return color;
+    }
+}
+
+float3 CalculateLights(Ray ray, RayHit hit) 
+{
+    float3 color = float3(0.0, 0.0, 0.0);
+    
+    color += _MaterialList[hit.materialID].ambientRef * _AmbientLight;
+    
+    for (uint i = 0; i < _PointLightCount; i++) 
+    {
+        color += CalculatePointLight(hit, i, ray.direction);
+    }
+    
+    return color;
+}
+
 float3 Shade(inout Ray ray, RayHit hit)
 {
     if (hit.distance < 1.#INF) 
     {        
         ray.origin = hit.position + hit.normal * 0.001f;
+        
+        float3 color = CalculateLights(ray, hit);
+        
         ray.direction = reflect(ray.direction, hit.normal);
-        ray.energy *= hit.specular;
+        ray.energy *= _MaterialList[hit.materialID].mirrorRef;
         
-        bool shadow = false;
-        Ray shadowRay = CreateRay(hit.position + hit.normal * 0.001f, -1 * _DirectionalLightDirection.xyz);
-        RayHit shadowHit = Trace(shadowRay);
+        //// Check for each light
+        //bool shadow = false;
+       
         
-        if (shadowHit.distance != 1.#INF)
-        {
-            return float3(0.0f, 0.0f, 0.0f);
-        }
+        //Ray shadowRay = CreateRay(hit.position + hit.normal * 0.001f, -1 * _DirectLightDirection);
+        //RayHit shadowHit = Trace(shadowRay);
+        
+        //if (shadowHit.distance != 1.#INF)
+        //{
+        //    return float3(0.0f, 0.0f, 0.0f);
+        //}
         
         // TODO: Directional light color is not used.
-        return saturate(dot(hit.normal, _DirectionalLightDirection.xyz) * -1) * _DirectionalLightColor.w * hit.albedo;
+        //return saturate(dot(hit.normal, _DirectLightDirection) * -1) * _DirectLightIntensity * hit.albedo;
+        
+        return color;
 
     }
     else 
     {
         ray.energy = 0.0f;
     
-        float theta = acos(ray.direction.y) / -PI;
-        float phi = atan2(ray.direction.x, -ray.direction.z) / -PI * 0.5f;
-        return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+        //float theta = acos(ray.direction.y) / -PI;
+        //float phi = atan2(ray.direction.x, -ray.direction.z) / -PI * 0.5f;
+        //return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+        return _BackgroundColor;
     }
 }
 
@@ -271,7 +347,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     Ray ray = CreateCameraRay(uv);
     float3 result = float3(0.0f, 0.0f, 0.0f);
     
-    for (int i = 0; i < 8; i++) 
+    for (uint i = 0; i < _MaxRecursionDepth; i++) 
     {
         RayHit hit = Trace(ray);
         result += ray.energy * Shade(ray, hit);

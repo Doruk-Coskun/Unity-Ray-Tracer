@@ -249,6 +249,22 @@ RayHit Trace(Ray ray)
     return bestHit;
 }
 
+float3 CalculateDirectLight(RayHit hit, float3 viewVector) 
+{
+    float3 color = float3(0.0, 0.0, 0.0);
+    
+    color += saturate(dot(hit.normal, -_DirectLightDirection)) * _DirectLightIntensity * 
+        _MaterialList[hit.materialID].diffuseRef;
+        
+    float3 h = normalize(-_DirectLightDirection + -viewVector);
+    float NdotH = saturate(dot(h, hit.normal));
+    //Calculate Blinn-Phong Shader
+    color +=  pow(NdotH, _MaterialList[hit.materialID].phongExponent) *
+        _MaterialList[hit.materialID].specularRef * _DirectLightIntensity;
+    
+    return color;
+}
+
 float3 CalculatePointLight(RayHit hit, uint PLIndex, float3 viewVector) 
 {
     float3 color = float3(0.0, 0.0, 0.0);
@@ -292,6 +308,8 @@ float3 CalculateLights(Ray ray, RayHit hit)
     {
         color += CalculatePointLight(hit, i, ray.direction);
     }
+    
+    color += CalculateDirectLight(hit, ray.direction);
     
     return color;
 }

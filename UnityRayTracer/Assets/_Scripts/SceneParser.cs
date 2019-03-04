@@ -141,7 +141,7 @@ public class SceneParser : MonoBehaviour
                                                           directLight.GetComponent<Light>().color.r,
                                                           directLight.GetComponent<Light>().color.g,
                                                           directLight.GetComponent<Light>().color.b
-                                                            );
+                                                            ) / 255;
     }
 
     private void ParseScenePointLights()
@@ -158,7 +158,7 @@ public class SceneParser : MonoBehaviour
                                                                         light.color.r,
                                                                         light.color.g,
                                                                         light.color.b
-                                                                        );
+                                                                        ) / 255;
             _SceneData._PointLightCount++;
             _SceneData._PointLightDatas.Add(newPointLightData);
         }

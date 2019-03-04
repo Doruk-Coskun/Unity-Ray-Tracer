@@ -109,14 +109,14 @@ public class RayTracingMaster : MonoBehaviour
         RayTracingShader.SetVector("_AmbientLight", SceneParser._SceneData._AmbientLight);
 
         RayTracingShader.SetInt("_PointLightCount", SceneParser._SceneData._PointLightCount);
-        if (SceneParser._SceneData._PointLightCount > 0)
+        if (SceneParser._SceneData._PointLightCount > 0 && _PointLightBuffer != null)
         {
             RayTracingShader.SetBuffer(0, "_PointLightList", _PointLightBuffer);
         }
 
 
         RayTracingShader.SetInt("_MaterialCount", SceneParser._SceneData._MaterialCount);
-        if (SceneParser._SceneData._MaterialCount > 0)
+        if (SceneParser._SceneData._MaterialCount > 0 && _MaterialBuffer != null)
         {
             RayTracingShader.SetBuffer(0, "_MaterialList", _MaterialBuffer);
         }

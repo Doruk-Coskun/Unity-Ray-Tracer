@@ -84,4 +84,4 @@ Material:
     - _MirrorReflectance: {r: 0, g: 0, b: 0, a: 1}
     - _SpecularReflectance: {r: 1, g: 1, b: 1, a: 1}
     - _SpecularReflectense: {r: 1, g: 1, b: 1, a: 1}
-    - _Transparency: {r: 1, g: 1, b: 1, a: 1}
+    - _Transparency: {r: 0, g: 0, b: 0, a: 1}

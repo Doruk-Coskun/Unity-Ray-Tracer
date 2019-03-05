@@ -74,8 +74,6 @@ public class SceneParser : MonoBehaviour
 
     private void Update()
     {
-        SetSceneData();
-
         if (generateScene == GenerateScene.SceneEditor && realtimeUpdate)
         {
             SetSceneData();
@@ -168,6 +166,8 @@ public class SceneParser : MonoBehaviour
     {
         Transform meshObjects = GameObject.Find("SceneGeometry/Meshes").GetComponent<Transform>();
 
+        int iterator = 0;
+
         foreach (Transform meshObject in meshObjects)
         {
             MeshData newMeshData = new MeshData();
@@ -190,7 +190,7 @@ public class SceneParser : MonoBehaviour
             _SceneData._VertexList.AddRange(newVertexList);
             _SceneData._SizeOfVertexList += mesh.vertexCount;
 
-            int iterator = 0;
+            iterator = 0;
 
             while (iterator < mesh.triangles.Length)
             {
@@ -203,7 +203,7 @@ public class SceneParser : MonoBehaviour
                 _SceneData._TriangleList.Add(newTriangle);
             }
 
-            _SceneData._SizeOfTriangleList += _SceneData._TriangleList.Count;
+            _SceneData._SizeOfTriangleList = _SceneData._TriangleList.Count;
 
             // TODO: Dangerous, be careful of this!
             newMeshData._TriangleIndexEnd = _SceneData._SizeOfTriangleList;

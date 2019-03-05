@@ -25,7 +25,7 @@ public class RayTracingMaster : MonoBehaviour
     public void SetUpScene()
     {
         if (_sphereBuffer != null)
-            _sphereBuffer.Release();
+            _sphereBuffer.Dispose();
 
         // Assign to compute buffer
         // TODO: Mind the sizeof(Spheres).
@@ -37,9 +37,20 @@ public class RayTracingMaster : MonoBehaviour
 
         if (_MeshVertexBuffer != null)
         {
-            _MeshVertexBuffer.Release();
-            _MeshIndexBuffer.Release();
-            _MeshDataBuffer.Release();
+            _MeshVertexBuffer.Dispose();
+            _MeshIndexBuffer.Dispose();
+            _MeshDataBuffer.Dispose();
+        }
+
+        if (_MaterialBuffer != null)
+        {
+            _MaterialBuffer.Release();
+        }
+
+        if (_PointLightBuffer != null)
+        {
+            _PointLightBuffer.Dispose();
+            _PointLightBuffer = null;
         }
 
         if (SceneParser._SceneData._MeshCount > 0)

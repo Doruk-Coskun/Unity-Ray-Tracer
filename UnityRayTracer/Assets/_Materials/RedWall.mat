@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Mirror
+  m_Name: RedWall
   m_Shader: {fileID: 4800000, guid: b7619b9d0251a478c83a95d180fcd1d3, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
@@ -67,7 +67,7 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _PhongExponent: 1
+    - _PhongExponent: 300
     - _RefractionIndex: 0
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
@@ -78,10 +78,10 @@ Material:
     - _AmbientReflectance: {r: 1, g: 1, b: 1, a: 1}
     - _AmbientReflectense: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _DiffuseReflectance: {r: 0, g: 0, b: 0, a: 1}
+    - _DiffuseReflectance: {r: 0.1, g: 0, b: 0, a: 1}
     - _DiffuseReflectense: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _MirrorReflectance: {r: 0.9, g: 0.9, b: 0.9, a: 1}
+    - _MirrorReflectance: {r: 0, g: 0, b: 0, a: 1}
     - _SpecularReflectance: {r: 0, g: 0, b: 0, a: 1}
     - _SpecularReflectense: {r: 1, g: 1, b: 1, a: 1}
     - _Transparency: {r: 0, g: 0, b: 0, a: 1}

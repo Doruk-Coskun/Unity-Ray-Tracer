@@ -93,6 +93,7 @@ struct Ray
     float3 origin;
     float3 direction;
     float3 energy;
+    bool isInObject;
 };
 
 struct RayHit 
@@ -111,6 +112,7 @@ Ray CreateRay(float3 origin, float3 direction)
     ray.origin = origin;
     ray.direction = normalize(direction);
     ray.energy = float3(1.0f, 1.0f, 1.0f);
+    ray.isInObject = false;
     return ray;
 }
 
@@ -316,6 +318,32 @@ float3 CalculateLights(Ray ray, RayHit hit)
     return color;
 }
 
+float3 CalculateFresnelEquation(Ray ray, RayHit hit) 
+{
+    float n1 = 1; // We assume one of the phases ray passes through is air, which has n = 1;
+    float n2 = _MaterialList[hit.materialID].refractionIndex;
+    
+    
+    float R_0 = pow((n1 - n2) / (n1 + n2), 2);
+    
+    float cosi = dot(ray.direction, hit.normal);
+    cosi = cosi < 0? -cosi : cosi;
+    
+    return R_0 + (1 - R_0) * pow((1 - cosi), 5);
+}
+
+float3 CalculateRefractedRay(Ray ray, RayHit hit) 
+{
+    float cosi = dot(ray.direction, hit.normal); 
+    float n1 = 1, n2 = _MaterialList[hit.materialID].refractionIndex; 
+    float3 N = hit.normal; 
+    if (cosi < 0) { cosi = -cosi; } else { n1 = n2; n2 = 1; N = -N; } 
+    float n = n1 / n2; 
+    float k = 1 - n * n * (1 - cosi * cosi);     
+    
+    return k < 0? float3(0.0, 0.0, 0.0) : n * ray.direction + N * n * cosi - N * sqrt(k); 
+}
+
 float3 Shade(inout Ray ray, RayHit hit)
 {
     if (hit.distance < 1.#INF) 
@@ -330,9 +358,7 @@ float3 Shade(inout Ray ray, RayHit hit)
         else 
         {
             if (length(_MaterialList[hit.materialID].mirrorRef) > length(_MaterialList[hit.materialID].transparency)) 
-            {
-                // TODO: Calculate refraction color with a new ray and add it to the color
-                
+            {                
                 // Ray reflects, next iteration in the main loop calculates its value
                 ray.origin = hit.position + hit.normal * 0.001f;
                 ray.direction = reflect(ray.direction, hit.normal);
@@ -342,6 +368,45 @@ float3 Shade(inout Ray ray, RayHit hit)
             {
                 // TODO: Calculate reflection color with a new ray and add it to the color
                 
+                
+                // TODO: Calculate refraction color with a new ray and add it to the color
+                
+                float R = CalculateFresnelEquation(ray, hit);
+                
+                bool outside = dot(ray.direction, hit.normal) < 0; 
+                float3 bias = 0.001 * hit.normal; 
+                    
+                float3 refractDir = normalize(CalculateRefractedRay(ray, hit));
+                    
+                    // Calculate and add refracted color then return reflected ray to main.
+                if (R > 0.5) 
+                {   
+                    Ray refractedRay = CreateRay(hit.position, refractDir);
+                    refractedRay.origin = outside? hit.position - bias : hit.position + bias;
+                    refractedRay.energy = (1 - R) * ray.energy;
+                    
+                    RayHit refractedHit = Trace(refractedRay);
+                    color += refractedRay.energy * CalculateLights(refractedRay, refractedHit);
+                                            
+                    ray.origin = outside? hit.position + bias : hit.position - bias;
+                    ray.direction = outside? reflect(ray.direction, hit.normal) : reflect(ray.direction, -hit.normal);
+                    ray.energy *= R;
+                }
+                else 
+                {
+                   Ray reflectedRay = CreateRay(hit.position, reflect(ray.direction, hit.normal));
+                   reflectedRay.origin = outside? hit.position + bias : hit.position - bias;
+                   reflectedRay.direction = outside? reflect(ray.direction, hit.normal) : reflect(ray.direction, -hit.normal);
+                   reflectedRay.energy =  R * ray.energy;
+                   
+                   RayHit reflectedHit = Trace(reflectedRay);
+                   color += reflectedRay.energy * CalculateLights(reflectedRay, reflectedHit);
+                      
+                   ray.origin = outside? hit.position - bias : hit.position + bias;
+                   ray.direction = refractDir;
+                   ray.energy *= (1 - R);
+                   ray.isInObject = !ray.isInObject;
+                }
                 // Ray refracts, next iteration in the main loop calculates its value
             }
         }

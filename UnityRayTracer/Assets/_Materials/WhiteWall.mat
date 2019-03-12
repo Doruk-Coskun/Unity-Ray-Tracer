@@ -78,7 +78,7 @@ Material:
     - _AmbientReflectance: {r: 1, g: 1, b: 1, a: 1}
     - _AmbientReflectense: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _DiffuseReflectance: {r: 0.1, g: 0.1, b: 0.1, a: 1}
+    - _DiffuseReflectance: {r: 0.08, g: 0.08, b: 0.08, a: 1}
     - _DiffuseReflectense: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _MirrorReflectance: {r: 0, g: 0, b: 0, a: 1}

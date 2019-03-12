@@ -19,24 +19,23 @@ public class SceneParser : MonoBehaviour
     [HideInInspector]
     public static SceneData _SceneData;
 
-    [SerializeField]
     private Camera _Camera;
+
+    [Range(1, 5)]
+    public int cameraNo;
 
     [SerializeField]
     public GenerateScene generateScene;
 
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
-    private int cameraNo;
+    public int maxRecursionDepth = 8;
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
-    private int maxRecursionDepth = 8;
+    public Color backgroundColor = Color.black;
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
-    private Color backgroundColor = Color.black;
-    [ConditionalHide("generateScene", 0)]
-    [SerializeField]
-    private Color ambientLight = Color.black;
+    public Color ambientLight = Color.black;
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
     private bool realtimeUpdate = false;
@@ -60,15 +59,7 @@ public class SceneParser : MonoBehaviour
 
     private void Start()
     {
-        switch (generateScene)
-        {   
-            case GenerateScene.SceneEditor:
-                SetSceneData();
-                break;
-            default:
-                break;
-        }
-
+        SetSceneData();
         rayTracingMaster.SetUpScene();
     }
 
@@ -89,8 +80,15 @@ public class SceneParser : MonoBehaviour
 
         SetBackgroundColor();
         ParseSceneCameras();
+        SetRenderCameraData();
         ParseSceneLights();
         ParseSceneObjects();
+
+        Transform[] cameraTransforms = GameObject.Find("SceneCameras").GetComponentsInChildren<Transform>();
+        if (cameraNo <= _SceneData._CameraDatas.Count)
+        {
+            rayTracingMaster = cameraTransforms[cameraNo].GetComponent<RayTracingMaster>();
+        }
     }
 
     private void SetBackgroundColor()
@@ -104,8 +102,29 @@ public class SceneParser : MonoBehaviour
 
     private void ParseSceneCameras()
     {
-        _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
-        _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
+        Transform cameraTransforms = GameObject.Find("SceneCameras").GetComponent<Transform>();
+
+        foreach (Transform cameraTransform in cameraTransforms)
+        {
+            CameraData newCameraData = new CameraData();
+            newCameraData._Position = cameraTransform.position;
+            newCameraData._Gaze = cameraTransform.forward;
+            newCameraData._Up = cameraTransform.up;
+            newCameraData._Fov = cameraTransform.GetComponent<Camera>().fieldOfView;
+            _SceneData._CameraDatas.Add(newCameraData);
+        }
+    }
+
+    private void SetRenderCameraData() 
+    {
+        Transform[] cameraTransforms = GameObject.Find("SceneCameras").GetComponentsInChildren<Transform>();
+        if (cameraNo <= _SceneData._CameraDatas.Count)
+        {
+            _Camera = cameraTransforms[cameraNo].GetComponent<Camera>();
+            _Camera.transform.forward = -Vector3.forward;
+            _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
+            _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
+        }
     }
 
     private void ParseSceneObjects()

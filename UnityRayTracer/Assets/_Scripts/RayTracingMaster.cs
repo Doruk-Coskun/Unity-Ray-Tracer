@@ -5,7 +5,7 @@ public class RayTracingMaster : MonoBehaviour
 {
     private SceneParser _SceneParser;
 
-    public ComputeShader RayTracingShader;
+    private ComputeShader RayTracingShader;
     public Texture SkyboxTexture;
 
     private RenderTexture _target;
@@ -20,12 +20,13 @@ public class RayTracingMaster : MonoBehaviour
     public void Start()
     {
         _SceneParser = GameObject.Find("SceneParser").GetComponent<SceneParser>();
+        RayTracingShader = (ComputeShader)Resources.Load("RayTracingShader");
     }
 
     public void SetUpScene()
     {
         if (_sphereBuffer != null)
-            _sphereBuffer.Release();
+            _sphereBuffer.Dispose();
 
         // Assign to compute buffer
         // TODO: Mind the sizeof(Spheres).
@@ -37,9 +38,20 @@ public class RayTracingMaster : MonoBehaviour
 
         if (_MeshVertexBuffer != null)
         {
-            _MeshVertexBuffer.Release();
-            _MeshIndexBuffer.Release();
-            _MeshDataBuffer.Release();
+            _MeshVertexBuffer.Dispose();
+            _MeshIndexBuffer.Dispose();
+            _MeshDataBuffer.Dispose();
+        }
+
+        if (_MaterialBuffer != null)
+        {
+            _MaterialBuffer.Release();
+        }
+
+        if (_PointLightBuffer != null)
+        {
+            _PointLightBuffer.Dispose();
+            _PointLightBuffer = null;
         }
 
         if (SceneParser._SceneData._MeshCount > 0)
@@ -91,8 +103,11 @@ public class RayTracingMaster : MonoBehaviour
     {
         RayTracingShader.SetInt("_MaxRecursionDepth", SceneParser._SceneData._MaxRecursionDepth);
 
+        if (SkyboxTexture != null)
+        {
+            RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
+        }
 
-        RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
         RayTracingShader.SetVector("_BackgroundColor", SceneParser._SceneData._BackGroundColor);
 
 

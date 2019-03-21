@@ -18,5 +18,10 @@ public class SceneParserEditor : Editor
                 sceneParser.SetSceneData();
             }
         }
+
+        if (GUILayout.Button("Generate Scene from XML"))
+        {
+            SceneXMLParser.LoadSceneFromXML(sceneParser.XMLFile);
+        }
     }
 }

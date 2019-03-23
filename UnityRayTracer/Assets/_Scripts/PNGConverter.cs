@@ -24,7 +24,6 @@ public class PNGConverter : MonoBehaviour
         byte[] bytes = tex.EncodeToPNG();
         Destroy(tex);
 
-        Debug.Log(Application.dataPath + "/Resources/ScreenShot.png");
         File.WriteAllBytes(Application.dataPath + "/Resources/ScreenShot.png", bytes);
     }
 }

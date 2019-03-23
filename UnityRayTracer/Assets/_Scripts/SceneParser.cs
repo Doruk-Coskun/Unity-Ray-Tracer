@@ -14,6 +14,7 @@ public class SceneParser : MonoBehaviour
         FromXML
     }
 
+    [HideInInspector]
     public RayTracingMaster rayTracingMaster;
 
     [HideInInspector]
@@ -28,13 +29,10 @@ public class SceneParser : MonoBehaviour
     public GenerateScene generateScene;
 
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public int maxRecursionDepth = 8;
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public Color backgroundColor = Color.black;
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public Color ambientLight = Color.black;
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
@@ -53,8 +51,6 @@ public class SceneParser : MonoBehaviour
         {
             Destroy(gameObject);
         }
-
-        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()

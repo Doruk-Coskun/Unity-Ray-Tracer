@@ -111,8 +111,10 @@ public class RayTracingMaster : MonoBehaviour
         RayTracingShader.SetVector("_BackgroundColor", SceneParser._SceneData._BackGroundColor);
 
 
-        RayTracingShader.SetMatrix("_CameraToWorldMatrix", SceneParser._SceneData._CameraToWorldMatrix);
-        RayTracingShader.SetMatrix("_CameraInverseProjectionMatrix", SceneParser._SceneData._CameraInverseProjectionMatrix);
+        RayTracingShader.SetMatrix("_CameraToWorldMatrix", 
+            SceneParser._SceneData._CameraToWorldMatrix);
+        RayTracingShader.SetMatrix("_CameraInverseProjectionMatrix", 
+            SceneParser._SceneData._CameraInverseProjectionMatrix);
 
 
         RayTracingShader.SetVector("_DirectLightDirection", 

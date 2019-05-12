@@ -17,7 +17,7 @@ public class RayTracingMaster : MonoBehaviour
     private ComputeBuffer _MaterialBuffer;
     private ComputeBuffer _PointLightBuffer;
 
-    public void Start()
+    public void Awake()
     {
         _SceneParser = GameObject.Find("SceneParser").GetComponent<SceneParser>();
         RayTracingShader = (ComputeShader)Resources.Load("RayTracingShader");

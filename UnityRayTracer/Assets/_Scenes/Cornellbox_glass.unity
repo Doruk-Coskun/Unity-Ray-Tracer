@@ -1037,7 +1037,7 @@ MonoBehaviour:
   maxRecursionDepth: 8
   backgroundColor: {r: 0.14150941, g: 0.14150941, b: 0.14150941, a: 1}
   ambientLight: {r: 0.078431375, g: 0.078431375, b: 0.078431375, a: 1}
-  realtimeUpdate: 1
+  realtimeUpdate: 0
   XMLFile: {fileID: 0}
 --- !u!4 &1670260503
 Transform:

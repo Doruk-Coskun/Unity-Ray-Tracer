@@ -3,8 +3,6 @@ using UnityEngine;
 
 public class RayTracingMaster : MonoBehaviour
 {
-    private SceneParser _SceneParser;
-
     private ComputeShader RayTracingShader;
     public Texture SkyboxTexture;
 
@@ -16,15 +14,17 @@ public class RayTracingMaster : MonoBehaviour
     private ComputeBuffer _MeshDataBuffer;
     private ComputeBuffer _MaterialBuffer;
     private ComputeBuffer _PointLightBuffer;
+    private ComputeBuffer _MeshBBLBuffer;
+    private ComputeBuffer _LinearBVHNodesBuffer;
 
-    public void Start()
+    public void Awake()
     {
-        _SceneParser = GameObject.Find("SceneParser").GetComponent<SceneParser>();
         RayTracingShader = (ComputeShader)Resources.Load("RayTracingShader");
     }
 
     public void SetUpScene()
     {
+        //Debug.Log("SetUpScene");
         if (_sphereBuffer != null)
             _sphereBuffer.Dispose();
 
@@ -54,6 +54,12 @@ public class RayTracingMaster : MonoBehaviour
             _PointLightBuffer = null;
         }
 
+        if (_LinearBVHNodesBuffer != null)
+        {
+            _LinearBVHNodesBuffer.Dispose();
+            _LinearBVHNodesBuffer = null;
+        }
+
         if (SceneParser._SceneData._MeshCount > 0)
         {
             _MeshVertexBuffer = new ComputeBuffer(SceneParser._SceneData._SizeOfVertexList, 12);
@@ -62,7 +68,7 @@ public class RayTracingMaster : MonoBehaviour
             _MeshIndexBuffer = new ComputeBuffer(SceneParser._SceneData._SizeOfTriangleList, 12);
             _MeshIndexBuffer.SetData(SceneParser._SceneData._TriangleList);
 
-            _MeshDataBuffer = new ComputeBuffer(SceneParser._SceneData._MeshCount, 16);
+            _MeshDataBuffer = new ComputeBuffer(SceneParser._SceneData._MeshCount, 20);
             _MeshDataBuffer.SetData(SceneParser._SceneData._MeshDataList);
         }
 
@@ -76,6 +82,12 @@ public class RayTracingMaster : MonoBehaviour
         {
             _PointLightBuffer = new ComputeBuffer(SceneParser._SceneData._PointLightCount, 24);
             _PointLightBuffer.SetData(SceneParser._SceneData._PointLightDatas);
+        }
+
+        if (SceneParser._SceneData._SizeOfBVHNodeList > 0)
+        {
+            _LinearBVHNodesBuffer = new ComputeBuffer(SceneParser._SceneData._SizeOfBVHNodeList, 32);
+            _LinearBVHNodesBuffer.SetData(SceneParser._SceneData._BVHNodeList);
         }
 
         SetShaderParameters();
@@ -92,8 +104,8 @@ public class RayTracingMaster : MonoBehaviour
 
         RayTracingShader.SetTexture(0, "Result", _target);
 
-        int threadGroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
-        int threadGroupsY = Mathf.CeilToInt(Screen.height / 8.0f);
+        int threadGroupsX = Mathf.CeilToInt(Screen.width / 4.0f);
+        int threadGroupsY = Mathf.CeilToInt(Screen.height / 4.0f);
         RayTracingShader.Dispatch(0, threadGroupsX, threadGroupsY, 1);
 
         Graphics.Blit(_target, destination);
@@ -101,6 +113,7 @@ public class RayTracingMaster : MonoBehaviour
 
     public void SetShaderParameters()
     {
+        //Debug.Log("SetShaderParameters");
         RayTracingShader.SetInt("_MaxRecursionDepth", SceneParser._SceneData._MaxRecursionDepth);
 
         if (SkyboxTexture != null)
@@ -153,6 +166,12 @@ public class RayTracingMaster : MonoBehaviour
             RayTracingShader.SetBuffer(0, "_VertexList", _MeshVertexBuffer);
             RayTracingShader.SetBuffer(0, "_TriangleList", _MeshIndexBuffer);
             RayTracingShader.SetBuffer(0, "_MeshDataList", _MeshDataBuffer);
+        }
+
+        RayTracingShader.SetInt("_BVHNodeCount", SceneParser._SceneData._SizeOfBVHNodeList);
+        if (SceneParser._SceneData._SizeOfBVHNodeList > 0 && _LinearBVHNodesBuffer != null)
+        {
+            RayTracingShader.SetBuffer(0, "_BVHNodeList", _LinearBVHNodesBuffer);
         }
     }
 

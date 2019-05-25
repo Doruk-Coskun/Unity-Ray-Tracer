@@ -117,7 +117,7 @@ public class SceneParser : MonoBehaviour
         if (cameraNo <= _SceneData._CameraDatas.Count)
         {
             _Camera = cameraTransforms[cameraNo].GetComponent<Camera>();
-            _Camera.transform.forward = -Vector3.forward;
+            //_Camera.transform.forward = -Vector3.forward;
             _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
             _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
         }
@@ -251,6 +251,7 @@ public class SceneParser : MonoBehaviour
             newLinearNode.secondChildOffset = node.secondChildOffset;
             //Debug.Log("Primitiveoffset: " + node.primitiveOffset);
             //Debug.Log("SecondChildoffset: " + node.secondChildOffset);
+
             _SceneData._BVHNodeList.Add(newLinearNode);
             _SceneData._SizeOfBVHNodeList++;
         }

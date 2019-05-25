@@ -229,70 +229,20 @@ bool IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, uint tr
     return true;
 }
 
-void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData) 
-{
-    for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i ++) 
-    {
-        IntersectTriangle(ray, bestHit, meshData, i);
-    }
-}
-
-bool IntersectBB(Ray ray, int i)
-{
-    float3 b_min = _BVHNodeList[i].bounds.pMin;
-    float3 b_max = _BVHNodeList[i].bounds.pMax;
-    
-    
-    
-    double t1 = (b_min.x - ray.origin.x)*-ray.direction.x;
-    double t2 = (b_max.x - ray.origin.x)*-ray.direction.x;
- 
-    double tmin = min(t1, t2);
-    double tmax = max(t1, t2);
- 
-    t1 = (b_min.y - ray.origin.y)*-ray.direction.y;
-    t2 = (b_max.y - ray.origin.y)*-ray.direction.y;
- 
-    tmin = max(tmin, min(t1, t2));
-    tmax = min(tmax, max(t1, t2));
-    
-    t1 = (b_min.z - ray.origin.z)*-ray.direction.z;
-    t2 = (b_max.z - ray.origin.z)*-ray.direction.z;
- 
-    tmin = max(tmin, min(t1, t2));
-    tmax = min(tmax, max(t1, t2));
- 
-    //return true;
-    return tmax > max(tmin, 0.0);
-}
-
 bool RayAABBFinalImprovement(Ray ray, int i) 
 {
-    //float tmin = 0;
-    //float tmax = 0;
-    Bounds3 aabb = _BVHNodeList[i].bounds;
-    float3 p0 = aabb.pMin;
-    float3 p1 = aabb.pMax;
+    float3 p0 = _BVHNodeList[i].bounds.pMin;
+    float3 p1 = _BVHNodeList[i].bounds.pMax;
     float3 invD = rcp(ray.direction);
-    //float3 t0s = (aabb.pMin - ray.origin) * invD;
-    //float3 t1s = (aabb.pMax - ray.origin) * invD;
-    
-    //float3 tsmaller = min(t0s, t1s);
-    //float3 tbigger  = max(t0s, t1s);
-    
-    //tmin = max(tmin, max(tsmaller[0], max(tsmaller[1], tsmaller[2])));
-    //tmax = min(tmax, min(tbigger[0], min(tbigger[1], tbigger[2])));
-    
-    //return (tmin < tmax);
-    
-  float3 t0 = (p0 - ray.origin) * invD;
-  float3 t1 = (p1 - ray.origin) * invD;
-  float3 tmin = min(t0,t1), tmax = max(t0,t1);
+
+    float3 t0 = (p0 - ray.origin) * invD;
+    float3 t1 = (p1 - ray.origin) * invD;
+    float3 tmin = min(t0,t1), tmax = max(t0,t1);
   
-  float pMin = max(tmin.z, max(tmin.x, tmin.y));
-  float pMax = min(tmax.z, max(tmax.x, tmax.y));
+    float pMin = max(tmin.z, max(tmin.x, tmin.y));
+    float pMax = min(tmax.z, max(tmax.x, tmax.y));
   
-  return pMin <= pMax;
+    return pMin <= pMax;
 }
 
 // TODO: Pass meshData index rather than meshData?
@@ -304,10 +254,9 @@ void IntersectBVH(Ray ray, inout RayHit bestHit, int index)
     uint toVisitOffset = 0, currentNodeIndex = 0;
     LinearBVHNode currentNode;
     
-    while (true)
+    [loop] while (true)
     {
         currentNode = _BVHNodeList[nodeOffset + currentNodeIndex];
-        //if (RayAABBFinalImprovement(ray, nodeOffset + currentNodeIndex))
         if (RayAABBFinalImprovement(ray, nodeOffset + currentNodeIndex))
         {
             if (currentNode.primitiveOffset >= 0)
@@ -342,18 +291,6 @@ void IntersectBVH(Ray ray, inout RayHit bestHit, int index)
     }
 }
 
-void IntersectBBAndTri(Ray ray, inout RayHit bestHit, int index)
-{
-    uint nodeOffset = _MeshDataList[index].BVHNodeOffset;
-    for (uint i = nodeOffset; i < _BVHNodeCount; i ++)
-    {
-        if (RayAABBFinalImprovement(ray, i))
-        {
-            IntersectTriangle(ray, bestHit, _MeshDataList[index], _BVHNodeList[i].primitiveOffset);
-        }
-    }
-}
-
 RayHit Trace(Ray ray)
 {
     RayHit bestHit = CreateRayHit();
@@ -367,16 +304,6 @@ RayHit Trace(Ray ray)
     {
         IntersectBVH(ray, bestHit, i);
     }
-    
-    //for (uint i = 0; i < _MeshCount; i++)
-    //{
-    //    IntersectMesh(ray, bestHit, _MeshDataList[i]);
-    //}
-    
-    //for (uint i = 0; i < _MeshCount; i++)
-    //{
-    //    IntersectBBAndTri(ray, bestHit, i);
-    //}
     
     return bestHit;
 }
@@ -575,7 +502,8 @@ float3 Shade(inout Ray ray, RayHit hit)
                     refractedRay.energy = (1 - R) * ray.energy;
                     
                     RayHit refractedHit = Trace(refractedRay);
-                    refractedRay.energy *= outside? pow(_MaterialList[hit.materialID].transparency, length(abs(refractedHit.position - hit.position))) : 1;
+                    refractedRay.energy *= outside? pow(_MaterialList[hit.materialID].transparency, 
+                            length(abs(refractedHit.position - hit.position))) : 1;
                     color += refractedRay.energy * ShadeOnce(refractedRay, refractedHit);
                                             
                     ray.origin = outside? hit.position + bias : hit.position - bias;
@@ -634,6 +562,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     {
         RayHit hit = Trace(ray);
         result += ray.energy * Shade(ray, hit);
+        //result += float3(10, 10, 10);
         
         if (!any(ray.energy))
         {

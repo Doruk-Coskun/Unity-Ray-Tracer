@@ -113,7 +113,7 @@ public class RayTracingMaster : MonoBehaviour
 
     public void SetShaderParameters()
     {
-        //Debug.Log("SetShaderParameters");
+        Debug.Log("SetShaderParameters");
         RayTracingShader.SetInt("_MaxRecursionDepth", SceneParser._SceneData._MaxRecursionDepth);
 
         if (SkyboxTexture != null)

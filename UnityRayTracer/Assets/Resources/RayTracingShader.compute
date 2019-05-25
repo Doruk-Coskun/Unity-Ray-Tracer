@@ -262,7 +262,6 @@ void IntersectBVH(Ray ray, inout RayHit bestHit, int index)
             if (currentNode.primitiveOffset >= 0)
             {
                 IntersectTriangle(ray, bestHit, _MeshDataList[index], currentNode.primitiveOffset);
-                //IntersectTriangle(ray, bestHit, meshData, currentNode.primitiveOffset + 1);
                 
                 if (toVisitOffset == 0) 
                 {

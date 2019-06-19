@@ -259,6 +259,7 @@ void IntersectBVH(Ray ray, inout RayHit bestHit, int index)
         currentNode = _BVHNodeList[nodeOffset + currentNodeIndex];
         if (RayAABBFinalImprovement(ray, nodeOffset + currentNodeIndex))
         {
+            
             if (currentNode.primitiveOffset >= 0)
             {
                 IntersectTriangle(ray, bestHit, _MeshDataList[index], currentNode.primitiveOffset);

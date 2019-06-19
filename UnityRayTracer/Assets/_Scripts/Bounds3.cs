@@ -2,7 +2,8 @@
 
 public struct Bounds3
 {
-    public Vector3 pMin, pMax;
+    public Vector3 pMin;// = Vector3.positiveInfinity;
+    public Vector3 pMax;// = Vector3.negativeInfinity;
 
     public Bounds3 Union(Bounds3 other) 
     {
@@ -33,5 +34,20 @@ public struct Bounds3
             return 1;
         else
             return 2;
+    }
+
+    public Vector3 Offset(Vector3 point)
+    {
+        Vector3 o = point - pMin;
+        if (pMax.x > pMin.x) o.x /= pMax.x - pMin.x;
+        if (pMax.y > pMin.y) o.y /= pMax.y - pMin.y;
+        if (pMax.z > pMin.z) o.z /= pMax.z - pMin.z;
+        return o;
+    }
+
+    public float SurfaceArea()
+    {
+        Vector3 d = pMax - pMin;
+        return 2 * (d.x * d.y + d.y * d.z + d.x * d.z);
     }
 }

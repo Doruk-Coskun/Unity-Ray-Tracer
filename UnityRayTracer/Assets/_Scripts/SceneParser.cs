@@ -41,6 +41,14 @@ public class SceneParser : MonoBehaviour
     [ConditionalHide("generateScene", 1)]
     public TextAsset XMLFile;
 
+    public enum SplitMethod
+    { 
+        EqualCounts,
+        SAH
+    }
+
+    public SplitMethod splitMethod;
+
     private void Awake()
     {
         if (_instance == null)

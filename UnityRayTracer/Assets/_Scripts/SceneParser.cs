@@ -14,6 +14,7 @@ public class SceneParser : MonoBehaviour
         FromXML
     }
 
+    [HideInInspector]
     public RayTracingMaster rayTracingMaster;
 
     [HideInInspector]
@@ -28,13 +29,10 @@ public class SceneParser : MonoBehaviour
     public GenerateScene generateScene;
 
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public int maxRecursionDepth = 8;
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public Color backgroundColor = Color.black;
     [ConditionalHide("generateScene", 0)]
-    [SerializeField]
     public Color ambientLight = Color.black;
     [ConditionalHide("generateScene", 0)]
     [SerializeField]
@@ -53,8 +51,6 @@ public class SceneParser : MonoBehaviour
         {
             Destroy(gameObject);
         }
-
-        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()
@@ -121,7 +117,7 @@ public class SceneParser : MonoBehaviour
         if (cameraNo <= _SceneData._CameraDatas.Count)
         {
             _Camera = cameraTransforms[cameraNo].GetComponent<Camera>();
-            _Camera.transform.forward = -Vector3.forward;
+            //_Camera.transform.forward = -Vector3.forward;
             _SceneData._CameraToWorldMatrix = _Camera.cameraToWorldMatrix;
             _SceneData._CameraInverseProjectionMatrix = _Camera.projectionMatrix.inverse;
         }
@@ -185,55 +181,96 @@ public class SceneParser : MonoBehaviour
     {
         Transform meshObjects = GameObject.Find("SceneGeometry/Meshes").GetComponent<Transform>();
 
-        int iterator = 0;
-
         foreach (Transform meshObject in meshObjects)
         {
-            MeshData newMeshData = new MeshData();
-            newMeshData._TriangleIndexStart = _SceneData._SizeOfTriangleList;
-            newMeshData._VertexIndexStart = _SceneData._SizeOfVertexList;
-            Vector3 position = meshObject.position;
-            float scale = meshObject.localScale.x;
-
-            Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
-
-            Vector3[] newVertexList = mesh.vertices;
-
-            for (int i = 0; i < newVertexList.Length; i++)
-            {
-                newVertexList[i] = meshObject.rotation * newVertexList[i];
-                newVertexList[i] = meshObject.localScale.x * newVertexList[i];
-                newVertexList[i] = meshObject.position + newVertexList[i];
-            }
-
-            _SceneData._VertexList.AddRange(newVertexList);
-            _SceneData._SizeOfVertexList += mesh.vertexCount;
-
-            iterator = 0;
-
-            while (iterator < mesh.triangles.Length)
-            {
-                Vector3 newTriangle = new Vector3();
-                newTriangle.x = mesh.triangles[iterator    ];
-                newTriangle.y = mesh.triangles[iterator + 1];
-                newTriangle.z = mesh.triangles[iterator + 2];
-
-                iterator += 3;
-                _SceneData._TriangleList.Add(newTriangle);
-            }
-
-            _SceneData._SizeOfTriangleList = _SceneData._TriangleList.Count;
-
-            // TODO: Dangerous, be careful of this!
-            newMeshData._TriangleIndexEnd = _SceneData._SizeOfTriangleList;
-
-            AddMaterialData(meshObject);
-
-            newMeshData._MaterialID = _SceneData._MaterialCount - 1;
-
-            _SceneData._MeshDataList.Add(newMeshData);
-            _SceneData._MeshCount++;
+            ParseSceneMesh(meshObject);
         }
+    }
+
+    // Create MeshData and MeshBoundingBox of the object
+    private void ParseSceneMesh(Transform meshObject) 
+    {
+        MeshData newMeshData = new MeshData();
+        newMeshData._TriangleIndexStart = _SceneData._SizeOfTriangleList;
+        newMeshData._VertexIndexStart = _SceneData._SizeOfVertexList;
+        newMeshData._BVHNodeOffset = _SceneData._SizeOfBVHNodeList;
+
+        Mesh mesh = meshObject.GetComponent<MeshFilter>().mesh;
+
+        Vector3[] newVertexList = mesh.vertices;
+
+        for (int i = 0; i < newVertexList.Length; i++)
+        {
+            newVertexList[i] = meshObject.rotation * newVertexList[i];
+            newVertexList[i] = meshObject.localScale.x * newVertexList[i];
+            newVertexList[i] = meshObject.position + newVertexList[i];
+        }
+
+        _SceneData._VertexList.AddRange(newVertexList);
+        _SceneData._SizeOfVertexList += mesh.vertexCount;
+
+        List<Triangle> newMeshTriangles = new List<Triangle>();
+        List<BVHPrimitiveInfo> primitiveInfos = new List<BVHPrimitiveInfo>();
+
+        int iterator = 0;
+
+        while (iterator < mesh.triangles.Length)
+        {
+            Triangle newTriangle = new Triangle();
+
+            // Set new triangles indices
+            newTriangle.indices.x = mesh.triangles[iterator];
+            newTriangle.indices.y = mesh.triangles[iterator + 1];
+            newTriangle.indices.z = mesh.triangles[iterator + 2];
+
+            Vector3 p0 = newVertexList[(int)newTriangle.indices.x];
+            Vector3 p1 = newVertexList[(int)newTriangle.indices.y];
+            Vector3 p2 = newVertexList[(int)newTriangle.indices.z];
+
+            // Set new triangles bounds
+            Bounds3 triBounds = new Bounds3();
+            triBounds.pMax = Vector3.Max(p0, p1);
+            triBounds.pMax = Vector3.Max(triBounds.pMax, p2);
+
+            triBounds.pMin = Vector3.Min(p0, p1);
+            triBounds.pMin = Vector3.Min(triBounds.pMin, p2);
+
+            BVHPrimitiveInfo newInfo = new BVHPrimitiveInfo(newMeshTriangles.Count, triBounds);
+            primitiveInfos.Add(newInfo);
+
+            iterator += 3;
+            newMeshTriangles.Add(newTriangle);
+        }
+
+        BVHAcc BVHAccObj = new BVHAcc(ref primitiveInfos);
+        foreach (LinearBVHNode node in BVHAccObj.LinearBVHArr)
+        {
+            LinearBVHNode newLinearNode = new LinearBVHNode();
+            newLinearNode.bounds = node.bounds;
+            newLinearNode.primitiveOffset = node.primitiveOffset;
+            newLinearNode.secondChildOffset = node.secondChildOffset;
+            //Debug.Log("Primitiveoffset: " + node.primitiveOffset);
+            //Debug.Log("SecondChildoffset: " + node.secondChildOffset);
+
+            _SceneData._BVHNodeList.Add(newLinearNode);
+            _SceneData._SizeOfBVHNodeList++;
+        }
+
+        _SceneData._TriangleList.AddRange(newMeshTriangles);
+
+        _SceneData._SizeOfTriangleList = _SceneData._TriangleList.Count;
+        newMeshData._TriangleIndexEnd = _SceneData._SizeOfTriangleList;
+
+        AddMaterialData(meshObject);
+
+        newMeshData._MaterialID = _SceneData._MaterialCount - 1;
+
+        _SceneData._MeshDataList.Add(newMeshData);
+        _SceneData._MeshCount++;
+
+        //Debug.Log("Mesh Count: " + _SceneData._MeshCount);
+        //Debug.Log("BVHNode Count: " + _SceneData._SizeOfBVHNodeList);
+        //Debug.Log("BVHNode offset: " + _SceneData._MeshDataList[0]._BVHNodeOffset);
     }
 
     private void ParseSceneSpheres()

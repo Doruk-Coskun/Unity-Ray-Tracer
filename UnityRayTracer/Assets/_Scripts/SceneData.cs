@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Xml.Serialization;
 using UnityEngine;
 
 public class SceneData
@@ -31,7 +30,6 @@ public class SceneData
 
     /*-----Materials-------*/
 
-
     public int _MaterialCount = 0;
     public List<MaterialData> _MaterialDatas = new List<MaterialData>();
 
@@ -46,7 +44,10 @@ public class SceneData
 
     public List<MeshData> _MeshDataList = new List<MeshData>();
     public List<Vector3> _VertexList = new List<Vector3>();
+    public List<Triangle> _TriangleList = new List<Triangle>();
 
-    // TODO: Update so that it holds normal vectors too
-    public List<Vector3> _TriangleList = new List<Vector3>();
+    /*-----BVH Structures-------*/
+
+    public int _SizeOfBVHNodeList = 0;
+    public List<LinearBVHNode> _BVHNodeList = new List<LinearBVHNode>();
 }

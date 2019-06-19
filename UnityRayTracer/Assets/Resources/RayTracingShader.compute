@@ -5,6 +5,8 @@
 // with cs.SetTexture
 RWTexture2D<float4> Result;
 
+uint3 _id;
+
 static const float PI = 3.14159265f;
 
 uint _MaxRecursionDepth;
@@ -71,6 +73,17 @@ struct Sphere
     float radius;
 };
 
+struct Bounds3
+{
+    float3 pMin;
+    float3 pMax;
+};
+
+struct Triangle
+{
+    float3 indices;
+};
+
 struct MeshData 
 {
     uint materialID;
@@ -78,13 +91,28 @@ struct MeshData
     uint triangleIndexStart;
     uint triangleIndexEnd;
     uint vertexIndexStart;
+    
+    uint BVHNodeOffset;
 };
 
 StructuredBuffer<Sphere> _SphereList;
 
 StructuredBuffer<float3> _VertexList;
-StructuredBuffer<float3> _TriangleList;
+StructuredBuffer<Triangle> _TriangleList;
 StructuredBuffer<MeshData> _MeshDataList;
+
+/*-----BVH Structures-----*/
+
+uint _BVHNodeCount;
+
+struct LinearBVHNode 
+{
+    Bounds3 bounds;
+    int primitiveOffset;
+    uint secondChildOffset;
+};
+
+StructuredBuffer<LinearBVHNode> _BVHNodeList;
 
 /*-----Ray & RayHit-----*/
 
@@ -157,95 +185,123 @@ void IntersectSphere(Ray ray, inout RayHit bestHit, Sphere sphere)
     }
 }
 
-void IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, float3 a, float3 b, float3 c) 
-{        
-        float3 ab = a - b;
-        float3 ac = a - c;
+bool IntersectTriangle(Ray ray, inout RayHit bestHit, MeshData meshData, uint triangleOffset) 
+{
+    Triangle tri = _TriangleList[meshData.triangleIndexStart + triangleOffset];
+    float3 vert0 = _VertexList[tri.indices.x + meshData.vertexIndexStart];
+    float3 vert1 = _VertexList[tri.indices.y + meshData.vertexIndexStart];
+    float3 vert2 = _VertexList[tri.indices.z + meshData.vertexIndexStart];
+    // find vectors for two edges sharing vert0
+    float3 edge1 = vert1 - vert0;
+    float3 edge2 = vert2 - vert0;
+    // begin calculating determinant - also used to calculate U parameter
+    float3 pvec = cross(ray.direction, edge2);
+    // if determinant is near zero, ray lies in plane of triangle
+    float det = dot(edge1, pvec);
+    float inv_det = 1.0f / det;
+    // calculate distance from vert0 to ray origin
+    float3 tvec = ray.origin - vert0;
+    // calculate U parameter and test bounds
+    float u = dot(tvec, pvec) * inv_det;
+    if (u < 0.0 || u > 1.0f)
+        return false;
+    // prepare to test V parameter
+    float3 qvec = cross(tvec, edge1);
+    // calculate V parameter and test bounds
+    float v = dot(ray.direction, qvec) * inv_det;
+    if (v < 0.0 || u + v > 1.0f)
+        return false;
+    // calculate t, ray intersects triangle
+    float t = dot(edge2, qvec) * inv_det;
+    
+    if (t <= 0 || t > bestHit.distance)
+        return false;
+    
 
-        // Intermediate products
-        float ei_hf, gf_di, dh_eg;
-
-        ei_hf = ac.y * ray.direction.z - ray.direction.y * ac.z;
-        gf_di = ray.direction.x * ac.z - ac.x * ray.direction.z;
-        dh_eg = ac.x * ray.direction.y - ac.y * ray.direction.x;
-
-        float ak_jb, jc_al, bl_kc;
-        float j,k,l;
-
-        j = a.x - ray.origin.x;
-        k = a.y - ray.origin.y;
-        l = a.z - ray.origin.z;
-
-        ak_jb = ab.x * k - j * ab.y;
-        jc_al = j * ab.z - ab.x * l;
-        bl_kc = ab.y * l - k * ab.z;
-
-        float M = ab.x * (ei_hf) + 
-                  ab.y * (gf_di) +
-                  ab.z * (dh_eg);
-
-        float t = - (ac.z * ak_jb +
-                   ac.y * jc_al +
-                   ac.x * bl_kc) / M;
-
-        // Check for intersection
-        if (t <= 0) {
-            //return false;
-        } else {
-            float gamma = (ray.direction.z * ak_jb +
-                           ray.direction.y * jc_al +
-                           ray.direction.x * bl_kc) / M; 
-
-            if (gamma < 0 || gamma > 1) {
-                //return false;
-            } else {
-                float beta = (j * ei_hf +
-                              k * gf_di +
-                              l * dh_eg) / M;
-                if (beta < 0 || beta > 1 - gamma) {
-                    //return false;
-                } else {
-                    // Fill out hit record
-                    if (bestHit.distance > t) {
-                        bestHit.distance = t;
-                        float3 normal = normalize(cross((b - a), (c - a)));
-                        bestHit.normal = normal;
-                        bestHit.position = ray.origin + t * ray.direction;
-                        bestHit.materialID = meshData.materialID;
-                    }
-                    //return true;
-                }
-            }
-        }
-
-        //return false;
+    
+    bestHit.distance = t;
+    float3 normal = normalize(cross(edge1, edge2));
+    bestHit.normal = normal;
+    
+    bestHit.position = ray.origin + t * ray.direction;
+    bestHit.materialID = meshData.materialID;
+    
+    return true;
 }
 
-void IntersectMesh(Ray ray, inout RayHit bestHit, MeshData meshData) 
+bool RayAABBFinalImprovement(Ray ray, int i) 
 {
-    for (uint i = meshData.triangleIndexStart; i < meshData.triangleIndexEnd; i ++) 
+    float3 p0 = _BVHNodeList[i].bounds.pMin;
+    float3 p1 = _BVHNodeList[i].bounds.pMax;
+    float3 invD = rcp(ray.direction);
+
+    float3 t0 = (p0 - ray.origin) * invD;
+    float3 t1 = (p1 - ray.origin) * invD;
+    float3 tmin = min(t0,t1), tmax = max(t0,t1);
+  
+    float pMin = max(tmin.z, max(tmin.x, tmin.y));
+    float pMax = min(tmax.z, max(tmax.x, tmax.y));
+  
+    return pMin <= pMax;
+}
+
+// TODO: Pass meshData index rather than meshData?
+void IntersectBVH(Ray ray, inout RayHit bestHit, int index)
+{
+    uint nodeOffset = _MeshDataList[index].BVHNodeOffset;
+
+    uint nodesToVisit[64];
+    uint toVisitOffset = 0, currentNodeIndex = 0;
+    LinearBVHNode currentNode;
+    
+    [loop] while (true)
     {
-        IntersectTriangle(ray, bestHit, meshData, 
-                                        _VertexList[_TriangleList[i].x + meshData.vertexIndexStart],
-                                        _VertexList[_TriangleList[i].y + meshData.vertexIndexStart],
-                                        _VertexList[_TriangleList[i].z + meshData.vertexIndexStart]
-                                        );
+        currentNode = _BVHNodeList[nodeOffset + currentNodeIndex];
+        if (RayAABBFinalImprovement(ray, nodeOffset + currentNodeIndex))
+        {
+            if (currentNode.primitiveOffset >= 0)
+            {
+                IntersectTriangle(ray, bestHit, _MeshDataList[index], currentNode.primitiveOffset);
+                
+                if (toVisitOffset == 0) 
+                {
+                    break;
+                }
+                toVisitOffset--;
+                currentNodeIndex = nodesToVisit[toVisitOffset];
+            }
+            else 
+            {
+                nodesToVisit[toVisitOffset] = currentNode.secondChildOffset;
+                toVisitOffset++;
+                currentNodeIndex = currentNodeIndex + 1;
+            }
+        }
+        else
+        {
+        //Result[_id.xy] = float4(0, 255, 0, 1);
+            if (toVisitOffset == 0) 
+            {
+                break;
+            }
+            toVisitOffset--;
+            currentNodeIndex = nodesToVisit[toVisitOffset];
+        }
     }
 }
 
 RayHit Trace(Ray ray)
 {
     RayHit bestHit = CreateRayHit();
-    //IntersectGroundPlane(ray, bestHit);
     
     for (uint i = 0; i < _SphereCount; i++) 
     {
         IntersectSphere(ray, bestHit, _SphereList[i]);
     }
     
-    for (uint i = 0; i < _MeshCount; i++) 
+    for (uint i = 0; i < _MeshCount; i++)
     {
-        IntersectMesh(ray, bestHit, _MeshDataList[i]);
+        IntersectBVH(ray, bestHit, i);
     }
     
     return bestHit;
@@ -445,7 +501,8 @@ float3 Shade(inout Ray ray, RayHit hit)
                     refractedRay.energy = (1 - R) * ray.energy;
                     
                     RayHit refractedHit = Trace(refractedRay);
-                    refractedRay.energy *= outside? pow(_MaterialList[hit.materialID].transparency, length(abs(refractedHit.position - hit.position))) : 1;
+                    refractedRay.energy *= outside? pow(_MaterialList[hit.materialID].transparency, 
+                            length(abs(refractedHit.position - hit.position))) : 1;
                     color += refractedRay.energy * ShadeOnce(refractedRay, refractedHit);
                                             
                     ray.origin = outside? hit.position + bias : hit.position - bias;
@@ -487,11 +544,12 @@ float3 Shade(inout Ray ray, RayHit hit)
     }
 }
 
-[numthreads(8,8,1)]
+[numthreads(4,4,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     uint width, height;
     Result.GetDimensions(width, height);
+    _id = id;
     
     float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
     
@@ -503,6 +561,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     {
         RayHit hit = Trace(ray);
         result += ray.energy * Shade(ray, hit);
+        //result += float3(10, 10, 10);
         
         if (!any(ray.energy))
         {
